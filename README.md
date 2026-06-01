@@ -1,370 +1,154 @@
-# Bench Bringup Dashboard
+# Bench Dashboard
 
-A web dashboard for monitoring and controlling the physical hardware bench (elpaso) at Applied Intuition. Runs as a Flask web server. Currently runs on a developer's laptop; the goal is to deploy it on Apps Platform so the whole team can use it without installing anything.
+Live hardware dashboard for monitoring and controlling HIL benches at Applied Intuition.
+Hosted on **emersonai** — a dedicated Minisforum mini PC on the bench network. Anyone on
+the internal network can access it at `http://10.80.11.13:5000` without installing anything.
 
 ---
 
 ## What It Does
 
-The dashboard connects to the hardware bench over the network and lets you:
-
-- See which USB hubs, relay boards, serial devices, and network relays are online
-- Toggle USB hub ports on/off (cuts power to connected devices)
-- Toggle relay channels on/off (physically switches DUT power and boot mode signals)
-- Stop and start the BuildKite CI agent running on the bench
-- See live-updating status without refreshing the page (Server-Sent Events)
-
-The bench hardware is on the Applied internal network. The dashboard SSHes into the bench host (`dev@10.80.11.28`) to run checks and control commands, and makes direct HTTP calls to a network relay module.
+- **Fleet view** — all 12 benches at a glance with live device status breakdown
+- **Per-bench detail** — click any bench to see USB hubs, relay boards, serial devices,
+  LabJack T7, FlexRay adapter, and BuildKite agent status
+- **Hub and relay control** — toggle USB hub ports and relay channels directly from the browser
+- **Agent control** — stop/restore BuildKite CI agent via `bk-debug-start` / `bk-debug-stop`
+- **Live updates** — Server-Sent Events, no page refresh needed
+- **Smart status** — distinguishes POWERED OFF (hub port off), ENUMERATING (transient USB),
+  UNKNOWN (hub comm error), and MISSING (genuine hardware issue)
 
 ---
 
 ## Architecture
 
 ```
-Browser (anyone on VPN or Apps Platform)
+Browser (anyone on internal network)
         |
-   Web server  ←── bench_config.yaml (all benches + their hardware)
+   http://10.80.11.13:5000
         |
-        ├── [parallel] SSH → elpaso (10.80.11.28)
-        │         ├── USB hub state/toggle     (termios, no extra libs)
-        │         ├── Relay state/toggle       (pyftdi via Bazel cache)
-        │         ├── Serial device presence   (/sys/bus/usb/devices)
-        │         └── BuildKite agent control  (systemctl)
+   emersonai (Minisforum, Ubuntu 22.04)
+   esi-dashboard user, systemd service: bench-dashboard
+        |
+        ├── SSH (dev@) → each bench host (parallel, one thread per bench)
+        │         ├── USB hub state / toggle      (termios)
+        │         ├── Relay state / toggle        (pyftdi, runs as bk user)
+        │         ├── Serial device presence      (/sys/bus/usb/devices)
+        │         ├── LabJack T7 presence         (USB vendor/product ID)
+        │         ├── FlexRay adapter + ping      (ip link + ping)
+        │         └── BuildKite agent status      (systemctl)
         │
-        ├── [parallel] SSH → mater (10.80.X.X)
-        │         └── (same device types, different hardware)
-        │
-        ├── [parallel] SSH → coconut (10.80.X.X)
-        │         └── ...
-        │
-        └── HTTP → Denkovi relays (each bench can have its own)
+        └── SSH (bk-debug@) → bench host (agent stop/restore only)
+                  ├── bk-debug-start  →  removes bench from CI queue
+                  └── bk-debug-stop   →  puts bench back in CI queue
 ```
 
-**Multi-bench is a core requirement.** The server polls all configured benches in parallel. Each bench has its own SSH host, user, and device list. Benches can have different device types — a bench with no Denkovi relay simply omits that section. The frontend shows a bench tab or sidebar to switch between benches.
+No files are installed on any bench. All bench-side checks are Python snippets sent
+over SSH and executed inline. Benches only need Python 3 stdlib (relay checks use
+pyftdi from the existing Bazel cache).
 
-The server does **not** install anything on any bench. All bench-side code is base64-encoded Python snippets sent over SSH and executed inline. Benches only need Python 3 stdlib (except relay state reading which uses pyftdi from the existing Bazel cache).
+---
+
+## Bench Config
+
+`benches_config.yaml` is the single source of truth for all 12 benches. It is
+**auto-generated** from `hil_benches.pkl` in core-stack via a GitHub Action that runs
+hourly — when the firmware team updates the pkl, a PR is opened automatically.
+
+To manually regenerate:
+```bash
+python3 scripts/sync_from_pkl.py /path/to/hil_benches.pkl --out benches_config.yaml
+```
+
+---
+
+## Deployment (emersonai)
+
+emersonai runs the dashboard as a systemd service that survives reboots and auto-restarts
+on crash.
+
+**SSH access:**
+```bash
+ssh esi-dashboard@10.80.11.13
+```
+
+**Service management:**
+```bash
+sudo systemctl status bench-dashboard
+sudo systemctl restart bench-dashboard
+sudo journalctl -u bench-dashboard -f   # logs
+```
+
+**Updating the dashboard:**
+```bash
+# From your MacBook — sync latest code to emersonai
+rsync -av --exclude='.venv' --exclude='__pycache__' \
+  /path/to/bench-dashboard/ esi-dashboard@10.80.11.13:~/dashboard/
+ssh esi-dashboard@10.80.11.13 "sudo systemctl restart bench-dashboard"
+```
+
+---
+
+## SSH Key Setup (one-time per bench)
+
+emersonai needs passwordless SSH to each bench as both `dev` (polling) and `bk-debug`
+(agent control):
+
+```bash
+# On emersonai
+ssh-keygen -t ed25519 -N "" -f ~/.ssh/id_ed25519
+
+for ip in 10.80.11.28 10.80.10.25 10.80.10.18 10.80.11.101 10.80.10.180 \
+          10.80.11.103 10.80.9.213 10.80.11.100 10.80.9.211 10.80.11.102 \
+          10.80.9.212 10.80.9.210; do
+  ssh-copy-id dev@$ip
+  ssh-copy-id bk-debug@$ip
+done
+```
 
 ---
 
 ## File Structure
 
 ```
-bench_bringup/dashboard/
-├── app.py                      # Flask app: routing, polling loop, SSE, toggle endpoints
-├── bench_config.yaml           # Elpaso bench hardware layout (IPs, serials, channels)
-├── bench_config.local.yaml     # Local test config (gitignored, for laptop dev)
-├── requirements.txt            # flask, pyyaml, requests
-├── run.sh                      # Local dev runner (creates venv, checks SSH, runs app)
-├── README.md                   # This file
+bench-dashboard/
+├── app.py                    # Flask app: routing, multi-bench polling, SSE
+├── benches_config.yaml       # All 12 benches — auto-synced from hil_benches.pkl
+├── requirements.txt
+├── run.sh                    # Dev runner (sets up venv, starts app)
 ├── devices/
-│   ├── ssh_runner.py           # Shared SSH exec utility — base64-encodes scripts, runs via SSH
-│   ├── hub.py                  # StarTech USB hub — check port states + toggle via termios
-│   ├── relay.py                # Sainsmart USB relay — check/toggle via pyftdi over SSH
-│   ├── denkovi_relay.py        # Denkovi network relay — check/toggle via direct HTTP
-│   ├── serial_device.py        # USB serial device presence check via /sys/bus/usb
-│   └── buildkite_agent.py      # BuildKite agent status, stop, start via systemctl
-└── templates/
-    └── index.html              # Dashboard UI — SSE live updates, toggle buttons
+│   ├── ssh_runner.py         # SSH exec utility (base64-encoded scripts)
+│   ├── hub.py                # StarTech USB hub check + toggle
+│   ├── relay.py              # Sainsmart relay check + toggle (pyftdi)
+│   ├── serial_device.py      # USB serial presence (/dev/serial/by-id)
+│   ├── labjack.py            # LabJack T7 USB presence (0cd5:0007)
+│   ├── ethernet_device.py    # Ethernet adapter + device ping
+│   ├── denkovi_relay.py      # Denkovi HTTP relay check + toggle
+│   ├── buildkite_agent.py    # BuildKite agent status / stop / restore
+│   └── ssh_runner.py         # Shared SSH exec
+├── templates/
+│   ├── fleet.html            # Fleet overview page
+│   └── bench.html            # Per-bench detail page
+├── scripts/
+│   └── sync_from_pkl.py      # Parses hil_benches.pkl → benches_config.yaml
+└── .github/workflows/
+    └── sync-benches.yaml     # Hourly sync from core-stack hil_benches.pkl
 ```
 
 ---
 
-## Key Implementation Details
-
-### SSH execution pattern
-
-All bench-side checks run like this (from `ssh_runner.py`):
-
-```python
-encoded = base64.b64encode(script.encode()).decode()
-cmd = f"python3 -c \"import base64; exec(base64.b64decode('{encoded}').decode())\""
-subprocess.run(["ssh", "-o", "BatchMode=yes", f"dev@10.80.11.28", cmd])
-```
-
-Scripts print a JSON result to stdout which is parsed back in the Flask server. This avoids installing any files on the bench.
-
-### pyftdi on NixOS (elpaso relay reads)
-
-Elpaso runs NixOS. pyftdi is not in the system Python. The relay check script includes a preamble that searches for pyftdi inside the existing Bazel pipdeps cache on the bench (populated by CI runs) and for libusb in the Nix store:
-
-```python
-_home = os.path.expanduser('~')
-glob('~/.cache/bazel/_bazel_bk/*/external/pipdeps_py310_pyftdi/site-packages')
-glob('/nix/store/*-libusb-*/lib/libusb-1.0.so.0')
-```
-
-This avoids installing anything — pyftdi is already present from CI.
-
-### Relay state reading
-
-The FTDI relay boards are bitbang USB devices (not serial TTY). They appear at `/sys/bus/usb/devices/*/serial` not `/dev/serial/by-id/`. Relay detection uses sysfs, not `/dev/`.
-
-The kernel `ftdi_sio` driver must be unloaded before pyftdi can claim the device:
-```bash
-sudo rmmod ftdi_sio
-```
-This is a one-time bench setup step.
-
-### Denkovi relay
-
-The Denkovi smartDEN IP-16R is a network relay module at `10.80.10.57`. It exposes an HTTP API at `/current_state.json`. The dashboard talks to it directly from the Flask server — no SSH needed. This works from a laptop on VPN and will also work from Apps Platform since it has VPC access to the bench network.
-
-### Live updates
-
-The frontend connects to `/events` (Server-Sent Events). The Flask server has a background thread that polls all devices every 5 seconds and broadcasts updates to all connected browsers.
-
-**Important for Cloud Run deployment:** The background thread will freeze when no request is active (Cloud Run CPU throttling). This needs to be changed before deploying. See the Apps Platform section below.
-
----
-
-## How to Run Locally
-
-```bash
-cd bench_bringup/dashboard
-./run.sh                                          # elpaso bench
-BENCH_CONFIG=bench_config.local.yaml ./run.sh     # local test bench
-```
-
-Open http://localhost:5000
-
----
-
-## Bench Hardware (elpaso)
-
-| Component | Detail |
-|-----------|--------|
-| Host | Minisforum mini PC, NixOS |
-| IP | 10.80.11.28 |
-| SSH user | dev (NOPASSWD sudo) |
-| BuildKite agent | runs as `bk` user, service `buildkite-agent-bk.service`, queue `fw_hil` |
-| Hub 2 | StarTech B0B7K2U4 — DUT Relays, PCAN, LabJack T7 |
-| Hub 1 | FTDI B001P1EX — S32Z debugger, relay hub, serial ports |
-| Relay AH05I4ZX | DUT power/boot (4 channels) |
-| Relay AH05I53H | WDT relays FS86/PF50 (4 channels) |
-| Denkovi relay | 10.80.10.57, 16-channel HTTP relay (bench "mnemosyne") |
-| Serial devices | MCU S32K, RTU S32Z, SMU S32Z, SENT gateway, CodeWarrior TAP |
-
----
-
-## Apps Platform Deployment
-
-### Why Apps Platform
-
-Running the Flask server on a developer's laptop means:
-- Only one person can use it at a time
-- The server goes down when the laptop sleeps
-- Everyone else has to clone the repo and run it themselves
-
-Apps Platform hosts it at a stable URL that anyone at Applied can open.
-
-### Platform facts learned
-
-- Deployed on Google Cloud Run behind IAP (Google account login)
-- Python Flask apps are supported natively (`apps-platform app init --template python-flask`)
-- Apps have VPC access to internal IPs including `10.80.11.28` and `10.80.10.57`
-- Static egress IP can be enabled so elpaso can allowlist the app's outbound IP
-- **CPU throttling:** background threads freeze when no request is active. Must use request-driven polling instead of a background thread.
-- Config goes in `project.toml` at the app root
-- Secrets managed via `apps-platform app secret set KEY "value"`
-
-### project.toml (create at bench_bringup/dashboard/project.toml)
-
-```toml
-name = "bench-bringup"
-
-[metadata]
-owner = "sahithi.kalva@applied.co"
-description = "Hardware bench bring-up dashboard for elpaso"
-
-[cloudrun]
-port = 8080
-use_static_egress_ip = true
-```
-
-### Changes required before deploying
-
-#### 1. app.py — read PORT from environment
-
-Cloud Run injects the port via `PORT` env variable. Change the main block:
-
-```python
-port = int(os.environ.get("PORT", 8080))
-app.run(host="0.0.0.0", port=port)
-```
-
-Also remove the background `_poll_loop` thread and the `/events` SSE endpoint (see next point).
-
-#### 2. Replace SSE with browser-side polling
-
-The current `/events` SSE endpoint relies on a background thread that won't work on Cloud Run. Replace it with client-side polling in `index.html`:
-
-```javascript
-// Replace new EventSource('/events') with:
-setInterval(() => {
-    fetch('/api/state')
-        .then(r => r.json())
-        .then(data => updateDashboard(data));
-}, 5000);
-```
-
-The `/api/state` endpoint already exists and returns the full bench state. No backend changes needed beyond removing the background thread and SSE route.
-
-#### 3. SSH private key as a secret
-
-On your laptop, SSH to elpaso uses `~/.ssh/id_rsa` implicitly. Cloud Run has no SSH keys on disk.
-
-Set the secret once:
-```bash
-apps-platform app secret set SSH_PRIVATE_KEY "$(cat ~/.ssh/id_rsa)"
-```
-
-Then in `devices/ssh_runner.py`, at module load time, write the key to a temp file:
-
-```python
-import os, stat, tempfile, atexit
-
-_key_file = None
-
-def _ensure_key_file() -> str | None:
-    global _key_file
-    if _key_file:
-        return _key_file
-    key = os.environ.get("SSH_PRIVATE_KEY")
-    if not key:
-        return None
-    f = tempfile.NamedTemporaryFile(mode="w", suffix=".pem", delete=False)
-    f.write(key)
-    f.close()
-    os.chmod(f.name, stat.S_IRUSR | stat.S_IWUSR)
-    atexit.register(os.unlink, f.name)
-    _key_file = f.name
-    return _key_file
-```
-
-And pass `-i {key_path}` to the SSH command when `_ensure_key_file()` returns a path.
-
-#### 4. requirements.txt
-
-No changes needed. The platform installs from `requirements.txt` automatically.
-
-### Deploy commands
-
-```bash
-cd bench_bringup/dashboard
-
-# First time only:
-apps-platform app init --template python-flask --app-name bench-bringup
-apps-platform app secret set SSH_PRIVATE_KEY "$(cat ~/.ssh/id_rsa)"
-
-# Every deploy:
-apps-platform app deploy
-```
-
----
-
-## Scalability
-
-### Multi-bench config schema
-
-The config file should support a list of benches. Each bench entry is independent — omit any device section that bench doesn't have:
-
-```yaml
-benches:
-  - name: elpaso
-    display_name: "Elpaso HW Bench 5"
-    ssh:
-      host: 10.80.11.28
-      user: dev
-      sudo_user: bk
-    buildkite:
-      service: buildkite-agent-bk.service
-      agent_name: elpaso-hw-bench-5
-      queue: fw_hil
-    devices:
-      usb_hubs:
-        - name: "Hub 2 — DUT Relays / PCAN / LabJack"
-          serial_path: /dev/serial/by-id/usb-StarTech.com_...
-          ports: ["DUT Relays 0", "Hub 5 (PCAN0-3)", "LabJack T7", "Unused"]
-      relay_boards:
-        - name: "DUT Relays 0 — Power / Boot"
-          identifier: AH05I4ZX
-          channels:
-            - {label: main_12v, inverted: true}
-            - {label: wdg_dbg_fs26, inverted: true}
-      serial_devices:
-        - {name: "MCU S32K", identifier: AU0K41SH}
-      denkovi_relays:
-        - {name: "Mnemosyne", host: 10.80.10.57, port: 80, password: admin}
-
-  - name: mater
-    display_name: "Mater FW HIL 19"
-    ssh:
-      host: 10.80.X.X
-      user: dev
-    devices:
-      relay_boards:
-        - ...
-```
-
-The backend polls all benches in parallel. The `/api/state` response is keyed by bench name:
-```json
-{
-  "elpaso": {"hubs": [...], "relays": [...], "serials": [...], "agent": {...}},
-  "mater":  {"hubs": [...], "relays": [...], "serials": [...], "agent": {...}}
-}
-```
-
-### Multi-instance Cloud Run (shared state)
-
-For reliable multi-user access with multiple Cloud Run instances, move state out of memory into a shared cache:
-
-- **Cloud Memorystore (Redis):** store the latest poll result as a JSON string with a TTL. Each instance reads from Redis on `/api/state`. One instance or Cloud Scheduler triggers `/internal/poll` to refresh it.
-- **Cloud Firestore:** heavier but adds history and audit trail (who toggled what, when)
-
-For a small team (< 20 concurrent users), a single Cloud Run instance with `min-instances: 1` (always warm) is simpler and sufficient. Add to `project.toml`:
-
-```toml
-[cloudrun]
-min_instances = 1
-```
-
-This keeps one instance alive at all times so the background-thread-to-polling transition is not urgent.
-
-### Polling frequency and SSH load
-
-Each poll cycle opens 2 SSH connections (one per relay board) + 2 more for hubs. At 5-second intervals with multiple users that's manageable, but as bench count grows:
-
-- **Increase poll interval** to 15-30s for production (hardware doesn't change state that fast)
-- **Parallelize SSH calls** with `concurrent.futures.ThreadPoolExecutor` in `_poll()` — all device checks are independent
-- **SSH connection multiplexing**: add `-o ControlMaster=auto -o ControlPath=/tmp/ssh-%r@%h:%p -o ControlPersist=60` to SSH args to reuse connections across calls
-
-### Adding new device types
-
-Each device type is an independent driver class in `devices/`. To add a new one (e.g., PCAN interface, LabJack T7):
-
-1. Add a new `devices/pcan.py` with a `check(cfg)` method returning a standard dict with `layer`, `status`, `error`, `diagnosis`
-2. Add the device config section to `bench_config.yaml`
-3. Wire it in `app.py` `_poll()` the same way other devices are wired
-
-The layered status model (`layer: 0-3`) is consistent across all drivers and the frontend already handles any status generically.
-
-### Authentication and access control
-
-Currently: Apps Platform IAP handles Google login — anyone at Applied with a Google account can access the app.
-
-If you need finer access control (e.g., read-only for most people, toggle access only for bench owners):
-- Add a `X-Goog-Authenticated-User-Email` header check on toggle endpoints (IAP injects this)
-- Maintain an allowlist in config or as a secret
-
----
-
-## Known Issues and Next Steps
-
-| Item | Status | Notes |
-|------|--------|-------|
-| pyftdi on elpaso | In progress | Preamble searches Bazel cache — needs validation on actual elpaso |
-| `sudo rmmod ftdi_sio` on elpaso | One-time bench setup | Must be done once before relay checks work |
-| Apps Platform deploy | Not started | Changes listed above needed first |
-| PCAN interface status | Not started | Simple: `ip link show canX` via SSH, no libraries needed |
-| LabJack T7 monitoring | Not started | Ethernet port on bench? If yes: Modbus TCP from server, no bench deps |
-| SSH key for Cloud Run | Not started | Needs `apps-platform app secret set SSH_PRIVATE_KEY` |
+## Benches
+
+| Bench | IP | Notes |
+|-------|----|-------|
+| elpaso-hw-bench-5 | 10.80.11.28 | LabJack T7, FlexRay |
+| coconut-hw-bench-18 | 10.80.10.25 | FlexRay |
+| mater-fw-hil-19 | 10.80.10.18 | |
+| themis-fw-hil-12 | 10.80.11.101 | LabJack T7, FlexRay |
+| helen-fw-hil-20 | 10.80.10.180 | FlexRay |
+| cassiopeia-fw-hil-17 | 10.80.11.103 | |
+| brisket-hw-bench-4 | 10.80.9.213 | |
+| crius-fw-hil-1 | 10.80.11.100 | |
+| hyperion-fw-hil-4 | 10.80.9.211 | |
+| phoebe-fw-hil-8 | 10.80.11.102 | |
+| caniaccombo-fw-hil-10 | 10.80.9.212 | |
+| drpepper-fw-hil-11 | 10.80.9.210 | |
