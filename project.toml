@@ -1,0 +1,9 @@
+name = "bench-bringup"
+
+[metadata]
+owner = "sahithi.kalva@applied.co"
+description = "Hardware bench bring-up dashboard for elpaso"
+
+[cloudrun]
+port = 8080
+use_static_egress_ip = true

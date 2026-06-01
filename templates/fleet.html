@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hardware Dashboard — All Benches</title>
+  <style>
+    :root {
+      --bg:        #0f1117;
+      --card-bg:   #1a1d27;
+      --border:    #2d3148;
+      --text:      #e2e8f0;
+      --muted:     #8892a4;
+      --green:     #22c55e;
+      --red:       #ef4444;
+      --orange:    #f97316;
+      --amber:     #f59e0b;
+      --blue:      #60a5fa;
+      --gray:      #4b5563;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg); color: var(--text);
+      font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+      font-size: 13px;
+    }
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 24px; border-bottom: 1px solid var(--border);
+      background: var(--card-bg); position: sticky; top: 0; z-index: 10;
+    }
+    header h1 { font-size: 14px; font-weight: 600; }
+    .header-right { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--muted); }
+    #live-dot {
+      width: 8px; height: 8px; border-radius: 50%; background: var(--gray);
+      transition: background 0.3s;
+    }
+    #live-dot.connected { background: var(--green); animation: pulse 2s infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+    main { padding: 20px 24px; }
+    .fleet-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 14px;
+    }
+
+    a.bench-card {
+      display: block; text-decoration: none; color: inherit;
+      background: var(--card-bg); border: 1px solid var(--border);
+      border-radius: 8px; padding: 16px;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    a.bench-card:hover { border-color: #4a5180; background: #1e2235; }
+
+    .bench-card-top {
+      display: flex; align-items: flex-start; justify-content: space-between;
+      margin-bottom: 8px; gap: 8px;
+    }
+    .bench-name { font-size: 14px; font-weight: 600; }
+    .bench-meta { font-size: 10px; color: var(--muted); margin-top: 2px; }
+
+    .badge {
+      flex-shrink: 0; font-size: 10px; font-weight: 700; letter-spacing: 0.06em;
+      padding: 2px 8px; border-radius: 4px; text-transform: uppercase; white-space: nowrap;
+    }
+    .badge-ok      { background: #14532d; color: var(--green); }
+    .badge-issues  { background: #451a03; color: var(--amber); }
+    .badge-down    { background: #450a0a; color: var(--red); }
+    .badge-unknown { background: #1f2937; color: var(--muted); }
+
+    .bench-devices {
+      font-size: 11px; color: var(--muted); margin-top: 10px;
+      display: flex; flex-wrap: wrap; gap: 8px;
+    }
+    .bench-devices .cnt { font-weight: 600; }
+    .cnt-ok      { color: var(--green); }
+    .cnt-off     { color: #60a5fa; }
+    .cnt-unc     { color: var(--amber); }
+    .cnt-issues  { color: var(--red); }
+
+    .agent-row {
+      display: flex; align-items: center; gap: 6px; margin-top: 8px;
+    }
+    .agent-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+    }
+    .agent-idle    { background: var(--green); }
+    .agent-busy    { background: var(--amber); }
+    .agent-stopped { background: var(--red); }
+    .agent-label { font-size: 10px; color: var(--muted); }
+
+    .bench-ts { font-size: 10px; color: var(--gray); margin-top: 6px; }
+
+    .summary-bar {
+      display: flex; gap: 16px; margin-bottom: 16px;
+      font-size: 11px; color: var(--muted);
+    }
+    .summary-bar span { display: flex; align-items: center; gap: 5px; }
+    .summary-dot { width: 8px; height: 8px; border-radius: 50%; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Hardware Dashboard &mdash; All Benches</h1>
+    <div class="header-right">
+      <div id="live-dot"></div>
+      <span id="last-updated">connecting...</span>
+    </div>
+  </header>
+
+  <main>
+    <div class="fleet-grid" id="fleet-grid">
+      {% for bench in fleet.benches %}
+      <a class="bench-card" href="/bench/{{ bench.name }}" id="card-{{ bench.name }}">
+        <div class="bench-card-top">
+          <div>
+            <div class="bench-name">{{ bench.name }}</div>
+            <div class="bench-meta">{{ bench.hostname }} &nbsp;/&nbsp; {{ bench.ip }}</div>
+          </div>
+          <span class="badge badge-{{ bench.status }}" id="badge-{{ bench.name }}">
+            {{ bench.status }}
+          </span>
+        </div>
+        <div class="bench-devices" id="devices-{{ bench.name }}">
+          {% if bench.total > 0 %}
+            {% if bench.n_ok %}<span class="cnt cnt-ok">{{ bench.n_ok }} ok</span>{% endif %}
+            {% if bench.n_off %}<span class="cnt cnt-off">{{ bench.n_off }} off</span>{% endif %}
+            {% if bench.n_uncertain %}<span class="cnt cnt-unc">{{ bench.n_uncertain }} uncertain</span>{% endif %}
+            {% if bench.n_issues %}<span class="cnt cnt-issues">{{ bench.n_issues }} missing</span>{% endif %}
+            {% if not bench.n_ok and not bench.n_off and not bench.n_uncertain and not bench.n_issues %}
+              <span style="color:var(--gray)">no data yet</span>
+            {% endif %}
+          {% else %}
+            <span style="color:var(--gray)">no devices configured</span>
+          {% endif %}
+        </div>
+        {% if bench.agent_status %}
+        <div class="agent-row" id="agent-{{ bench.name }}">
+          <div class="agent-dot agent-{{ bench.agent_status }}"></div>
+          <span class="agent-label">Agent: {{ bench.agent_status }}</span>
+        </div>
+        {% endif %}
+        <div class="bench-ts" id="ts-{{ bench.name }}">
+          {% if bench.timestamp %}{{ bench.timestamp | int }}{% endif %}
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+  </main>
+
+  <script>
+    const dot = document.getElementById('live-dot');
+    const lastUpdated = document.getElementById('last-updated');
+
+    function fmtTime(ts) {
+      if (!ts) return '';
+      return 'Updated ' + new Date(ts * 1000).toLocaleTimeString();
+    }
+
+    function applyFleet(data) {
+      if (data.timestamp) lastUpdated.textContent = fmtTime(data.timestamp);
+      (data.benches || []).forEach(bench => {
+        const badge = document.getElementById('badge-' + bench.name);
+        if (badge) {
+          badge.className = 'badge badge-' + bench.status;
+          badge.textContent = bench.status;
+        }
+
+        const devEl = document.getElementById('devices-' + bench.name);
+        if (devEl) {
+          if (bench.total > 0) {
+            const parts = [];
+            if (bench.n_ok)       parts.push(`<span class="cnt cnt-ok">${bench.n_ok} ok</span>`);
+            if (bench.n_off)      parts.push(`<span class="cnt cnt-off">${bench.n_off} off</span>`);
+            if (bench.n_uncertain)parts.push(`<span class="cnt cnt-unc">${bench.n_uncertain} uncertain</span>`);
+            if (bench.n_issues)   parts.push(`<span class="cnt cnt-issues">${bench.n_issues} missing</span>`);
+            devEl.innerHTML = parts.length ? parts.join('') : '<span style="color:var(--gray)">no data yet</span>';
+          } else {
+            devEl.innerHTML = '<span style="color:var(--gray)">no devices configured</span>';
+          }
+        }
+
+        const agentEl = document.getElementById('agent-' + bench.name);
+        if (agentEl && bench.agent_status) {
+          agentEl.innerHTML = `<div class="agent-dot agent-${bench.agent_status}"></div><span class="agent-label">Agent: ${bench.agent_status}</span>`;
+        }
+
+        const tsEl = document.getElementById('ts-' + bench.name);
+        if (tsEl && bench.timestamp) {
+          tsEl.textContent = fmtTime(bench.timestamp);
+        }
+      });
+    }
+
+    const es = new EventSource('/events');
+    es.onopen = () => { dot.className = 'connected'; };
+    es.onmessage = (e) => { try { applyFleet(JSON.parse(e.data)); } catch {} };
+    es.onerror = () => { dot.className = ''; };
+  </script>
+</body>
+</html>

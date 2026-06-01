@@ -1,0 +1,454 @@
+global:
+  poll_interval_s: 10
+  server:
+    host: 0.0.0.0
+    port: 5000
+
+benches:
+  # --- Palm Proto HW Benches (S32K + S32Z) ---
+
+  - name: elpaso
+    hostname: elpaso-hw-bench-5
+    ip: 10.80.11.28
+    ssh: {host: 10.80.11.28, user: dev, sudo_user: bk}
+    buildkite:
+      service: buildkite-agent-bk.service
+      agent_name: elpaso-hw-bench-5
+      queue: fw_hil
+    devices:
+      usb_hubs:
+        - name: "Hub 2 — DUT Relays / PCAN / LabJack"
+          serial_path: /dev/serial/by-id/usb-StarTech.com_5G4AINDRM-USB-A-HUB_B0B7K2U4-if00-port0
+          ports:
+            - "DUT Relays 0 (AH05I4ZX) — power/boot"
+            - "Hub 5 (PCAN0-3)"
+            - "LabJack T7"
+            - "Unused"
+        - name: "Hub 1 — S32Z Debugger / Relay Hub / Serials"
+          serial_path: /dev/serial/by-id/usb-FTDI_FT232R_USB_UART_B001P1EX-if00-port0
+          ports:
+            - "S32Z CodeWarrior TAP debugger"
+            - "Hub 4 (WDT Relays AH05I53H + SENT gateway)"
+            - "Hub 3 (PeMicro, MCU/SMU/RTU serials)"
+            - "Unused"
+      relay_boards:
+        - name: "DUT Relays 0 — Power / Boot"
+          identifier: AH05I4ZX
+          powered_by: {hub_index: 0, port: 0}
+          channels:
+            - {label: main_12v, inverted: true, default: false}
+            - {label: wdg_dbg_fs26, inverted: true, default: true}
+            - {label: boot_mod_1, inverted: false, default: false}
+            - {label: boot_mod_2, inverted: false, default: false}
+        - name: "WDT Relays — FS86 / PF50"
+          identifier: AH05I53H
+          powered_by: {hub_index: 1, port: 1}
+          channels:
+            - {label: wdg_dbg_fs86, inverted: true, default: true}
+            - {label: wdg_dbg_pf50, inverted: false, default: true}
+            - {label: unused_ch2, inverted: false, default: false}
+            - {label: unused_ch3, inverted: false, default: false}
+      serial_devices:
+        - {name: "MCU S32K Debug Serial", identifier: AU0K41SH, powered_by: {hub_index: 1, port: 2}}
+        - {name: "RTU S32Z Debug Serial", identifier: AU0K3DGT, powered_by: {hub_index: 1, port: 2}}
+        - {name: "SMU S32Z Debug Serial", identifier: AB0L6LBL, powered_by: {hub_index: 1, port: 2}}
+        - {name: "SENT Gateway", identifier: MACH_SYSTEMS, powered_by: {hub_index: 1, port: 1}}
+        - {name: "S32Z CodeWarrior TAP", identifier: CodeWarrior_TAP, powered_by: {hub_index: 1, port: 0}}
+      labjack_devices:
+        - name: "LabJack T7"
+          powered_by: {hub_index: 0, port: 2}
+      ethernet_devices:
+        - name: "FL3x FlexRay Analyzer"
+          interface: enp0s20f0u1u1c2
+          device_ip: 192.168.1.15
+
+  - name: coconut
+    hostname: coconut-hw-bench-18
+    ip: 10.80.10.25
+    ssh: {host: 10.80.10.25, user: dev, sudo_user: bk}
+    buildkite:
+      service: buildkite-agent-bk.service
+      agent_name: coconut-hw-bench-18
+      queue: fw_hil
+    devices:
+      usb_hubs:
+        - name: "Hub PCAN"
+          serial_path: /dev/serial/by-id/usb-FTDI_FT232R_USB_UART_B0036AWH-if00-port0
+          ports:
+            - "PCAN1"
+            - "PCAN2"
+            - "PCAN0"
+            - "Radmoon"
+        - name: "Hub Misc — Relays / Debugger / Serials"
+          serial_path: /dev/serial/by-id/usb-FTDI_FT232R_USB_UART_B00337ZD-if00-port0
+          ports:
+            - "DUT Relays (CVVDM0ZB) — power/boot"
+            - "S32 Debugger/ZAP"
+            - "Anker Hub (serials)"
+            - "Unused"
+      relay_boards:
+        - name: "DUT Relays — Power / Boot"
+          identifier: CVVDM0ZB
+          powered_by: {hub_index: 1, port: 0}
+          channels:
+            - {label: main_12v, inverted: true, default: false}
+            - {label: wdg_dbg_fs26, inverted: true, default: true}
+            - {label: boot_mod_1, inverted: false, default: false}
+            - {label: boot_mod_2, inverted: false, default: false}
+        - name: "WDT Relays — FS86 / PF50"
+          identifier: AH05I4ZM
+          powered_by: {hub_index: 1, port: 0}
+          channels:
+            - {label: wdg_dbg_fs86, inverted: true, default: true}
+            - {label: wdg_dbg_pf50, inverted: true, default: true}
+            - {label: unused_ch2, inverted: false, default: false}
+            - {label: unused_ch3, inverted: false, default: false}
+      serial_devices:
+        - {name: "MCU S32K Debug Serial", identifier: AU0K3F5A, powered_by: {hub_index: 1, port: 2}}
+        - {name: "RTU S32Z Debug Serial", identifier: AU0K3J5F, powered_by: {hub_index: 1, port: 2}}
+        - {name: "SMU S32Z Debug Serial", identifier: FT98RVUO, powered_by: {hub_index: 1, port: 2}}
+      ethernet_devices:
+        - name: "FL3x FlexRay Analyzer"
+          interface: enp0s20f0u4u1
+          device_ip: 192.168.1.15
+
+  - name: mater
+    hostname: mater-fw-hil-19
+    ip: 10.80.10.18
+    ssh: {host: 10.80.10.18, user: dev, sudo_user: bk}
+    buildkite:
+      service: buildkite-agent-bk.service
+      agent_name: mater-fw-hil-19
+      queue: fw_hil
+    devices:
+      usb_hubs:
+        - name: "Hub 0 — Debugger / Relays / Serials"
+          serial_path: /dev/serial/by-id/usb-FTDI_FT232R_USB_UART_B001OE31-if00-port0
+          ports:
+            - "S32 Debugger/ZAP"
+            - "DUT Relays (AH05I4ZH) — power/boot"
+            - "Anker Hub (serials)"
+            - "Unused"
+        - name: "Hub 1 — PCAN"
+          serial_path: /dev/serial/by-id/usb-FTDI_FT232R_USB_UART_B001P3XS-if00-port0
+          ports:
+            - "PCAN1"
+            - "PCAN0"
+            - "PCAN2"
+            - "Radmoon"
+      relay_boards:
+        - name: "DUT Relays — Power / Boot"
+          identifier: AH05I4ZH
+          powered_by: {hub_index: 0, port: 1}
+          channels:
+            - {label: main_12v, inverted: true, default: false}
+            - {label: watchdog_debug, inverted: true, default: true}
+            - {label: boot_mod_1, inverted: false, default: false}
+            - {label: boot_mod_2, inverted: false, default: false}
+      serial_devices:
+        - {name: "MCU S32K Debug Serial", identifier: AU0K40VB, powered_by: {hub_index: 0, port: 2}}
+        - {name: "RTU S32Z Debug Serial", identifier: AU0K3FHR, powered_by: {hub_index: 0, port: 2}}
+        - {name: "SMU S32Z Debug Serial", identifier: FTEIO7H5, powered_by: {hub_index: 0, port: 2}}
+
+  - name: themis
+    hostname: themis-fw-hil-12
+    ip: 10.80.11.101
+    ssh: {host: 10.80.11.101, user: dev, sudo_user: bk}
+    buildkite:
+      service: buildkite-agent-bk.service
+      agent_name: themis-fw-hil-12
+      queue: fw_hil
+    devices:
+      usb_hubs:
+        - name: "Hub 0 — Debugger / WDT Relays / Serials"
+          serial_path: /dev/serial/by-id/usb-FTDI_FT232R_USB_UART_B001OE6P-if00-port0
+          ports:
+            - "S32Z CodeWarrior TAP debugger"
+            - "Hub 4 (WDT Relays A907TD5M + SENT gateway)"
+            - "Hub 3 (PeMicro, MCU/SMU/RTU serials)"
+            - "Radmoon"
+        - name: "Hub 1 — DUT Relay / PCAN / LabJack"
+          serial_path: /dev/serial/by-id/usb-FTDI_FT232R_USB_UART_B0033ESY-if00-port0
+          ports:
+            - "DUT Relay (A4002Cp8) — power/boot"
+            - "PCAN Hub"
+            - "LabJack T7"
+            - "Unused"
+      relay_boards:
+        - name: "DUT Relays — Power / Boot"
+          identifier: A4002Cp8
+          powered_by: {hub_index: 1, port: 0}
+          channels:
+            - {label: main_12v, inverted: true, default: false}
+            - {label: wdg_dbg_fs26, inverted: true, default: true}
+            - {label: boot_mod_1, inverted: false, default: false}
+            - {label: boot_mod_2, inverted: false, default: false}
+        - name: "WDT Relays — FS86 / PF50"
+          identifier: A907TD5M
+          powered_by: {hub_index: 0, port: 1}
+          channels:
+            - {label: wdg_dbg_fs86, inverted: true, default: true}
+            - {label: wdg_dbg_pf50, inverted: true, default: true}
+            - {label: unused_ch2, inverted: false, default: false}
+            - {label: unused_ch3, inverted: false, default: false}
+      serial_devices:
+        - {name: "MCU S32K Debug Serial", identifier: BK00TWYF, powered_by: {hub_index: 0, port: 2}}
+        - {name: "RTU S32Z Debug Serial", identifier: BK00TWYA, powered_by: {hub_index: 0, port: 2}}
+        - {name: "SMU S32Z Debug Serial", identifier: FTD3TO1K, powered_by: {hub_index: 0, port: 2}}
+        - {name: "SENT Gateway", identifier: MACH_SYSTEMS, powered_by: {hub_index: 0, port: 1}}
+      labjack_devices:
+        - name: "LabJack T7"
+          powered_by: {hub_index: 1, port: 2}
+      ethernet_devices:
+        - name: "FL3x FlexRay Analyzer"
+          interface: enp0s20f0u1u1u1c2
+          device_ip: 192.168.1.15
+
+  - name: helen
+    hostname: helen-fw-hil-20
+    ip: 10.80.10.180
+    ssh: {host: 10.80.10.180, user: dev, sudo_user: bk}
+    buildkite:
+      service: buildkite-agent-bk.service
+      agent_name: helen-fw-hil-20
+      queue: fw_hil
+    devices:
+      usb_hubs:
+        - name: "Hub 0 — Debugger / Relays / Serials"
+          serial_path: /dev/serial/by-id/usb-FTDI_FT232R_USB_UART_B001P1ZW-if00-port0
+          ports:
+            - "S32 Debugger/ZAP"
+            - "Anker Hub 4 (relay devices)"
+            - "Anker Hub 3 (serials)"
+            - "Unused"
+        - name: "Hub 1 — PCAN"
+          serial_path: /dev/serial/by-id/usb-FTDI_FT232R_USB_UART_B001OYSO-if00-port0
+          ports:
+            - "PCAN1"
+            - "PCAN0"
+            - "PCAN2"
+            - "Radmoon"
+      relay_boards:
+        - name: "DUT Relays 0 — Power / Boot"
+          identifier: A907TD4J
+          powered_by: {hub_index: 0, port: 1}
+          channels:
+            - {label: main_12v, inverted: true, default: false}
+            - {label: wdg_dbg_fs26, inverted: true, default: true}
+            - {label: boot_mod_1, inverted: false, default: false}
+            - {label: boot_mod_2, inverted: false, default: false}
+        - name: "DUT Relays 1 — WDT FS86 / PF50"
+          identifier: AH05I3J0
+          powered_by: {hub_index: 0, port: 1}
+          channels:
+            - {label: wdg_dbg_fs86, inverted: true, default: true}
+            - {label: wdg_dbg_pf50, inverted: true, default: true}
+            - {label: unused_ch2, inverted: false, default: false}
+            - {label: unused_ch3, inverted: false, default: false}
+      serial_devices:
+        - {name: "MCU S32K Debug Serial", identifier: AU0K3HGK, powered_by: {hub_index: 0, port: 2}}
+        - {name: "RTU S32Z Debug Serial", identifier: AU0K3GYB, powered_by: {hub_index: 0, port: 2}}
+        - {name: "SMU S32Z Debug Serial", identifier: FT98RHHT, powered_by: {hub_index: 0, port: 2}}
+      ethernet_devices:
+        - name: "FL3x FlexRay Analyzer"
+          interface: enp0s13f0u1u1
+          device_ip: 192.168.1.15
+
+  - name: cassiopeia
+    hostname: cassiopeia-fw-hil-17
+    ip: 10.80.11.103
+    ssh: {host: 10.80.11.103, user: dev, sudo_user: bk}
+    buildkite:
+      service: buildkite-agent-bk.service
+      agent_name: cassiopeia-fw-hil-17
+      queue: fw_hil
+    devices:
+      usb_hubs:
+        - name: "Hub PCAN"
+          serial_path: /dev/serial/by-id/usb-FTDI_FT232R_USB_UART_B001P3WN-if00-port0
+          ports:
+            - "PCAN0"
+            - "PCAN1"
+            - "PCAN2"
+            - "Radmoon"
+        - name: "Hub Misc — Relays / Debugger / Serials"
+          serial_path: /dev/serial/by-id/usb-FTDI_FT232R_USB_UART_B001OYQC-if00-port0
+          ports:
+            - "DUT Relays 0 (AH05I4P7) — power/boot"
+            - "S32 Debugger/ZAP"
+            - "Anker Hub (serials)"
+            - "WDT Relays (AH05I56F)"
+      relay_boards:
+        - name: "DUT Relays — Power / Boot"
+          identifier: AH05I4P7
+          powered_by: {hub_index: 1, port: 0}
+          channels:
+            - {label: main_12v, inverted: true, default: false}
+            - {label: watchdog_debug, inverted: true, default: true}
+            - {label: boot_mod_1, inverted: false, default: false}
+            - {label: boot_mod_2, inverted: false, default: false}
+        - name: "WDT Relays — FS86 / PF50"
+          identifier: AH05I56F
+          powered_by: {hub_index: 1, port: 3}
+          channels:
+            - {label: fs86_dbg, inverted: true, default: true}
+            - {label: pf50_dbg, inverted: false, default: true}
+            - {label: unused_ch2, inverted: false, default: false}
+            - {label: unused_ch3, inverted: false, default: false}
+      serial_devices:
+        - {name: "MCU S32K Debug Serial", identifier: AU0K3GJ6, powered_by: {hub_index: 1, port: 2}}
+        - {name: "RTU S32Z Debug Serial", identifier: AU0K3GDJ, powered_by: {hub_index: 1, port: 2}}
+        - {name: "SMU S32Z Debug Serial", identifier: FTEIO7J0, powered_by: {hub_index: 1, port: 2}}
+
+  - name: brisket
+    hostname: brisket-hw-bench-4
+    ip: 10.80.9.213
+    ssh: {host: 10.80.9.213, user: dev, sudo_user: bk}
+    buildkite:
+      service: buildkite-agent-bk.service
+      agent_name: brisket-hw-bench-4
+      queue: fw_hil
+    devices:
+      usb_hubs:
+        - name: "Hub 0 — PCAN / Relays"
+          serial_path: /dev/serial/by-id/usb-FTDI_FT232R_USB_UART_B0033MFU-if00-port0
+          ports:
+            - "PCAN 31386"
+            - "DUT Relays (AH05I51M) — power/boot"
+            - "PCAN 34230"
+            - "Unused"
+      relay_boards:
+        - name: "DUT Relays — Power / Boot"
+          identifier: AH05I51M
+          powered_by: {hub_index: 0, port: 1}
+          channels:
+            - {label: main_12v, inverted: true, default: false}
+            - {label: unused_ch1, inverted: false, default: false}
+            - {label: unused_ch2, inverted: false, default: false}
+            - {label: unused_ch3, inverted: false, default: false}
+      serial_devices:
+        - {name: "DUT UART", identifier: E6614103E737122F}
+
+  # --- S32K3 T-Box FW HIL Benches ---
+
+  - name: crius
+    hostname: crius-fw-hil-1
+    ip: 10.80.11.100
+    ssh: {host: 10.80.11.100, user: dev, sudo_user: bk}
+    buildkite:
+      service: buildkite-agent-bk.service
+      agent_name: crius-fw-hil-1
+      queue: fw_hil
+    devices:
+      usb_hubs:
+        - name: "Hub 0 — PCAN / Relay"
+          serial_path: /dev/serial/by-id/usb-StarTech.com_5G4AINDRM-USB-A-HUB_B0B7JZCL-if00-port0
+          ports:
+            - "PCAN0"
+            - "DUT Relay (A5002WfN) — power"
+            - "PCAN1"
+            - "Unused"
+      relay_boards:
+        - name: "DUT Relay — Power"
+          identifier: A5002WfN
+          powered_by: {hub_index: 0, port: 1}
+          channels:
+            - {label: main_12v, inverted: true, default: false}
+            - {label: unused_ch1, inverted: false, default: false}
+            - {label: unused_ch2, inverted: false, default: false}
+            - {label: unused_ch3, inverted: false, default: false}
+      serial_devices:
+        - {name: "DUT UART", identifier: E6633861A3874238}
+
+  - name: hyperion
+    hostname: hyperion-fw-hil-4
+    ip: 10.80.9.211
+    ssh: {host: 10.80.9.211, user: dev, sudo_user: bk}
+    buildkite:
+      service: buildkite-agent-bk.service
+      agent_name: hyperion-fw-hil-4
+      queue: fw_hil
+    devices:
+      usb_hubs: []
+      relay_boards:
+        - name: "DUT Relay"
+          identifier: A40378E2
+          channels:
+            - {label: main_12v, inverted: true, default: false}
+            - {label: unused_ch1, inverted: false, default: false}
+            - {label: unused_ch2, inverted: false, default: false}
+            - {label: unused_ch3, inverted: false, default: false}
+      serial_devices:
+        - {name: "DUT UART", identifier: E6633861A31A3938}
+
+  - name: phoebe
+    hostname: phoebe-fw-hil-8
+    ip: 10.80.11.102
+    ssh: {host: 10.80.11.102, user: dev, sudo_user: bk}
+    buildkite:
+      service: buildkite-agent-bk.service
+      agent_name: phoebe-fw-hil-8
+      queue: fw_hil
+    devices:
+      usb_hubs:
+        - name: "Hub 0 — Relay / PCAN"
+          serial_path: /dev/serial/by-id/usb-StarTech.com_5G4AINDRM-USB-A-HUB_B0B7K19R-if00-port0
+          ports:
+            - "DUT Relay (PMTB12X8W) — power"
+            - "PCAN 29785"
+            - "Unused"
+            - "Unused"
+      relay_boards:
+        - name: "DUT Relay — Power"
+          identifier: PMTB12X8W
+          powered_by: {hub_index: 0, port: 0}
+          channels:
+            - {label: main_12v, inverted: true, default: false}
+            - {label: unused_ch1, inverted: false, default: false}
+            - {label: unused_ch2, inverted: false, default: false}
+            - {label: unused_ch3, inverted: false, default: false}
+      serial_devices: []
+
+  - name: caniaccombo
+    hostname: caniaccombo-fw-hil-10
+    ip: 10.80.9.212
+    ssh: {host: 10.80.9.212, user: dev}
+    buildkite:
+      service: buildkite-agent-bk.service
+      agent_name: caniaccombo-fw-hil-10
+      queue: fw_hil
+    devices:
+      usb_hubs: []
+      relay_boards: []
+      serial_devices: []
+
+  - name: drpepper
+    hostname: drpepper-fw-hil-11
+    ip: 10.80.9.210
+    ssh: {host: 10.80.9.210, user: dev, sudo_user: bk}
+    buildkite:
+      service: buildkite-agent-bk.service
+      agent_name: drpepper-fw-hil-11
+      queue: fw_hil
+    devices:
+      usb_hubs:
+        - name: "Hub 0 — Relay / PCAN / Serials"
+          serial_path: /dev/serial/by-id/usb-StarTech.com_5G4AINDRM-USB-A-HUB_B0B7K2T2-if00-port0
+          ports:
+            - "DUT Relay (A4003kkp) — power"
+            - "PCAN 33014"
+            - "Anker Hub (SOC1/SOC2 serials)"
+            - "Unused"
+      relay_boards:
+        - name: "DUT Relay — Power"
+          identifier: A4003kkp
+          powered_by: {hub_index: 0, port: 0}
+          channels:
+            - {label: main_12v, inverted: true, default: false}
+            - {label: unused_ch1, inverted: false, default: false}
+            - {label: unused_ch2, inverted: false, default: false}
+            - {label: unused_ch3, inverted: false, default: false}
+      serial_devices:
+        - {name: "VIP Serial (IOC)", identifier: E6632891E3278933}
+        - {name: "SoC App Serial", identifier: 3-3.2.3.4, powered_by: {hub_index: 0, port: 2}}
+        - {name: "SoC SAIL Serial", identifier: 3-3.2.3.3, powered_by: {hub_index: 0, port: 2}}

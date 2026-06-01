@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hardware Dashboard — {{ bench.name }}</title>
+  <style>
+    :root {
+      --bg:         #0f1117;
+      --card-bg:    #1a1d27;
+      --border:     #2d3148;
+      --text:       #e2e8f0;
+      --muted:      #8892a4;
+      --green:      #22c55e;
+      --red:        #ef4444;
+      --orange:     #f97316;
+      --amber:      #f59e0b;
+      --gray:       #4b5563;
+      --btn-bg:     #252836;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg); color: var(--text);
+      font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+      font-size: 13px;
+    }
+
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 24px; border-bottom: 1px solid var(--border);
+      background: var(--card-bg); position: sticky; top: 0; z-index: 10;
+    }
+    .header-left h1 { font-size: 14px; font-weight: 600; }
+    .header-left .meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .header-right { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--muted); }
+    #live-dot {
+      width: 8px; height: 8px; border-radius: 50%; background: var(--gray);
+      transition: background 0.3s;
+    }
+    #live-dot.connected { background: var(--green); animation: pulse 2s infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+    main { padding: 20px 24px; display: flex; flex-direction: column; gap: 24px; }
+
+    section h2 {
+      font-size: 10px; font-weight: 700; letter-spacing: 0.1em;
+      text-transform: uppercase; color: var(--muted); margin-bottom: 12px;
+    }
+
+    .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 14px; }
+
+    .card {
+      background: var(--card-bg); border: 1px solid var(--border);
+      border-radius: 8px; padding: 16px;
+    }
+    .card-header {
+      display: flex; align-items: flex-start; justify-content: space-between;
+      margin-bottom: 12px; gap: 8px;
+    }
+    .card-title { font-size: 13px; font-weight: 600; }
+    .card-sub { font-size: 10px; color: var(--muted); margin-top: 3px; word-break: break-all; }
+
+    .badge {
+      flex-shrink: 0; font-size: 10px; font-weight: 700; letter-spacing: 0.06em;
+      padding: 2px 8px; border-radius: 4px; text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .badge-ok           { background: #14532d; color: var(--green); }
+    .badge-missing      { background: #450a0a; color: var(--red); }
+    .badge-powered_off  { background: #1e3a5f; color: #60a5fa; }
+    .badge-enumerating  { background: #2d2a14; color: var(--amber); }
+    .badge-driver_error { background: #431407; color: var(--orange); }
+    .badge-comm_error   { background: #451a03; color: var(--amber); }
+    .badge-unknown      { background: #1f2937; color: var(--muted); }
+
+    .diagnosis {
+      font-size: 11px; line-height: 1.55; padding: 8px 10px;
+      margin-bottom: 12px; border-radius: 4px; border-left: 3px solid;
+    }
+    .diagnosis-missing      { background: #1c0a0a; border-color: var(--red);    color: #fca5a5; }
+    .diagnosis-powered_off  { background: #0f1f35; border-color: #3b82f6;       color: #93c5fd; }
+    .diagnosis-enumerating  { background: #1c1a06; border-color: var(--amber);  color: #fcd34d; }
+    .diagnosis-driver_error { background: #1c0d06; border-color: var(--orange); color: #fdba74; }
+    .diagnosis-comm_error   { background: #1c1306; border-color: var(--amber);  color: #fcd34d; }
+
+    .ports-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+    }
+    .port-cell { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+    .port-num {
+      font-size: 9px; font-weight: 700; color: var(--muted);
+    }
+    .port-indicator {
+      width: 32px; height: 32px; border-radius: 50%;
+      border: 2px solid; display: flex; align-items: center; justify-content: center;
+    }
+    .port-on  { background: #14532d; border-color: var(--green); }
+    .port-off { background: #1f2937; border-color: var(--gray); }
+    .port-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+    }
+    .port-on  .port-dot { background: var(--green); }
+    .port-off .port-dot { background: var(--gray); }
+    .port-label {
+      font-size: 9px; color: var(--muted); text-align: center;
+      line-height: 1.3; max-width: 72px; word-break: break-word;
+    }
+    .port-inv { font-size: 8px; color: #6b7280; }
+    .port-btn {
+      font-size: 9px; padding: 2px 8px; border-radius: 3px; cursor: pointer;
+      border: 1px solid var(--border); background: var(--btn-bg); color: var(--text);
+      font-family: inherit; transition: background 0.15s;
+    }
+    .port-btn:hover { background: #2d3148; }
+    .port-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .safety-panel {
+      background: var(--card-bg); border: 1px solid var(--border);
+      border-radius: 8px; padding: 16px; display: flex;
+      align-items: center; justify-content: space-between; gap: 16px;
+      flex-wrap: wrap;
+    }
+    .safety-panel.agent-busy { border-color: var(--amber); }
+    .safety-panel.agent-stopped { border-color: var(--red); }
+
+    .agent-info { display: flex; flex-direction: column; gap: 4px; }
+    .agent-name { font-size: 13px; font-weight: 600; }
+    .agent-meta { font-size: 10px; color: var(--muted); }
+    .agent-job { font-size: 11px; color: var(--amber); margin-top: 4px; }
+
+    .badge-idle    { background: #14532d; color: var(--green); }
+    .badge-busy    { background: #451a03; color: var(--amber); }
+    .badge-stopped { background: #450a0a; color: var(--red); }
+
+    .safety-actions { display: flex; align-items: center; gap: 10px; }
+    .safety-btn {
+      font-size: 11px; font-weight: 600; padding: 6px 14px; border-radius: 5px;
+      cursor: pointer; border: 1px solid; font-family: inherit;
+      transition: opacity 0.15s;
+    }
+    .safety-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-stop    { background: #450a0a; border-color: var(--red);    color: var(--red); }
+    .btn-restore { background: #14532d; border-color: var(--green);  color: var(--green); }
+
+    .lock-notice {
+      font-size: 10px; color: var(--amber); display: none;
+      padding: 6px 10px; border-radius: 4px; background: #1c1306;
+      border: 1px solid #451a03; margin-top: 8px;
+    }
+    .lock-notice.visible { display: block; }
+    .back-link { font-size: 11px; color: var(--muted); text-decoration: none; margin-right: 10px; }
+    .back-link:hover { color: var(--text); }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-left">
+      <h1><a class="back-link" href="/">&#8592; All Benches</a>Hardware Dashboard — {{ bench.name }}</h1>
+      <div class="meta">{{ bench.hostname }} &nbsp;/&nbsp; {{ bench.ip }}</div>
+    </div>
+    <div class="header-right">
+      <div id="live-dot"></div>
+      <span id="last-updated">connecting...</span>
+    </div>
+  </header>
+
+  <main>
+    {% if state.agent %}
+    <section>
+      <h2>Bench Safety</h2>
+      {% set a = state.agent %}
+      {% if a.busy %}
+        {% set panel_cls = "safety-panel agent-busy" %}
+        {% set badge_cls = "badge badge-busy" %}
+        {% set badge_txt = "BUSY" %}
+      {% elif a.service == "active" %}
+        {% set panel_cls = "safety-panel" %}
+        {% set badge_cls = "badge badge-idle" %}
+        {% set badge_txt = "IDLE" %}
+      {% else %}
+        {% set panel_cls = "safety-panel agent-stopped" %}
+        {% set badge_cls = "badge badge-stopped" %}
+        {% set badge_txt = "STOPPED" %}
+      {% endif %}
+      <div class="{{ panel_cls }}" id="safety-panel">
+        <div class="agent-info">
+          <div class="agent-name">{{ a.agent_name }}</div>
+          <div class="agent-meta">queue: {{ a.queue }}</div>
+          {% if a.busy and a.job %}
+          <div class="agent-job">Running build #{{ a.job.build }}</div>
+          {% endif %}
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;">
+          <span class="{{ badge_cls }}" id="agent-badge">{{ badge_txt }}</span>
+          <div class="safety-actions">
+            <button class="safety-btn btn-stop" id="btn-stop-agent"
+              onclick="stopAgent(this)"
+              {% if a.service != "active" %}disabled{% endif %}>
+              Stop Agent
+            </button>
+            <button class="safety-btn btn-restore" id="btn-restore-agent"
+              onclick="restoreAgent(this)"
+              {% if a.service == "active" %}disabled{% endif %}>
+              Restore Agent
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="lock-notice {% if a.service == 'active' %}visible{% endif %}" id="lock-notice">
+        Agent is active — hub and relay controls are locked. Stop the agent before making electrical changes.
+      </div>
+    </section>
+    {% endif %}
+
+    <section>
+      <h2>USB Hubs</h2>
+      <div class="cards" id="hubs-container">
+        {% for hub in state.hubs %}
+        {% set hi = loop.index0 %}
+        <div class="card" id="hub-{{ hi }}">
+          <div class="card-header">
+            <div>
+              <div class="card-title">{{ hub.name }}</div>
+              <div class="card-sub">{{ hub.serial_path }}</div>
+            </div>
+            <span class="badge badge-{{ hub.status }}">{{ hub.status | replace("_", " ") }}</span>
+          </div>
+          {% if hub.status != "ok" %}
+          <div class="diagnosis diagnosis-{{ hub.status }}">
+            {% if hub.diagnosis %}{{ hub.diagnosis }}<br>{% endif %}
+            {% if hub.error %}<span style="opacity:0.7;font-size:10px;">{{ hub.error }}</span>{% endif %}
+          </div>
+          {% endif %}
+          {% if hub.port_states %}
+          <div class="ports-grid">
+            {% for on in hub.port_states %}
+            {% set pi = loop.index0 %}
+            {% set label = hub.port_labels[pi] if pi < hub.port_labels | length else "—" %}
+            {% set is_unused = label.lower().startswith('unused') %}
+            <div class="port-cell" {% if is_unused %}style="opacity:0.3;pointer-events:none"{% endif %}>
+              <div class="port-num">P{{ pi }}</div>
+              <div class="port-indicator {{ 'port-off' if is_unused else ('port-on' if on else 'port-off') }}">
+                <div class="port-dot"></div>
+              </div>
+              <div class="port-label">{{ label }}</div>
+              {% if not is_unused %}
+              <button class="port-btn" onclick="toggleHub({{ hi }}, {{ pi }}, this)">
+                {{ "off" if on else "on" }}
+              </button>
+              {% else %}
+              <div style="height:22px"></div>
+              {% endif %}
+            </div>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section>
+      <h2>Relay Boards</h2>
+      <div class="cards" id="relays-container">
+        {% for relay in state.relays %}
+        {% set ri = loop.index0 %}
+        <div class="card" id="relay-{{ ri }}">
+          <div class="card-header">
+            <div>
+              <div class="card-title">{{ relay.name }}</div>
+              <div class="card-sub">id: {{ relay.identifier }}</div>
+            </div>
+            <span class="badge badge-{{ relay.status }}">{{ relay.status | replace("_", " ") }}</span>
+          </div>
+          {% if relay.status != "ok" %}
+          <div class="diagnosis diagnosis-{{ relay.status }}">
+            {% if relay.diagnosis %}{{ relay.diagnosis }}<br>{% endif %}
+            {% if relay.error %}<span style="opacity:0.7;font-size:10px;">{{ relay.error }}</span>{% endif %}
+          </div>
+          {% endif %}
+          {% if relay.channel_states %}
+          <div class="ports-grid">
+            {% for on in relay.channel_states %}
+            {% set ci = loop.index0 %}
+            {% set label = relay.channel_labels[ci] if ci < relay.channel_labels | length else "—" %}
+            {% set is_unused = label.lower().startswith('unused') %}
+            <div class="port-cell" {% if is_unused %}style="opacity:0.3;pointer-events:none"{% endif %}>
+              <div class="port-num">CH{{ ci }}</div>
+              <div class="port-indicator {{ 'port-off' if is_unused else ('port-on' if on else 'port-off') }}">
+                <div class="port-dot"></div>
+              </div>
+              <div class="port-label">
+                {{ label }}
+                {% if not is_unused and relay.channel_inverted[ci] %}<br><span class="port-inv">(inv)</span>{% endif %}
+              </div>
+              {% if not is_unused %}
+              <button class="port-btn" onclick="toggleRelay({{ ri }}, {{ ci }}, this)">
+                {{ "off" if on else "on" }}
+              </button>
+              {% else %}
+              <div style="height:22px"></div>
+              {% endif %}
+            </div>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+
+    {% if state.denkovi %}
+    <section>
+      <h2>Ethernet Relays</h2>
+      <div class="cards" id="denkovi-container">
+        {% for d in state.denkovi %}
+        {% set di = loop.index0 %}
+        <div class="card" id="denkovi-{{ di }}">
+          <div class="card-header">
+            <div>
+              <div class="card-title">{{ d.name }}</div>
+              <div class="card-sub">{{ d.host }}</div>
+            </div>
+            <span class="badge badge-{{ d.status }}">{{ d.status | replace("_", " ") }}</span>
+          </div>
+          {% if d.status != "ok" %}
+          <div class="diagnosis diagnosis-{{ d.status }}">
+            {% if d.diagnosis %}{{ d.diagnosis }}<br>{% endif %}
+            {% if d.error %}<span style="opacity:0.7;font-size:10px;">{{ d.error }}</span>{% endif %}
+          </div>
+          {% endif %}
+          {% if d.channel_states %}
+          <div class="ports-grid">
+            {% for on in d.channel_states %}
+            {% set ci = loop.index0 %}
+            {% set label = d.channel_labels[ci] if ci < d.channel_labels | length else "—" %}
+            {% set is_unused = label.lower().startswith('unused') %}
+            <div class="port-cell" {% if is_unused %}style="opacity:0.3;pointer-events:none"{% endif %}>
+              <div class="port-num">Q{{ ci + 1 }}</div>
+              <div class="port-indicator {{ 'port-off' if is_unused else ('port-on' if on else 'port-off') }}">
+                <div class="port-dot"></div>
+              </div>
+              <div class="port-label">{{ label }}</div>
+              {% if not is_unused %}
+              <button class="port-btn" onclick="toggleDenkovi({{ di }}, {{ ci }}, this)">
+                {{ "off" if on else "on" }}
+              </button>
+              {% else %}
+              <div style="height:22px"></div>
+              {% endif %}
+            </div>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
+
+    <section>
+      <h2>Serial / Debug Devices</h2>
+      <div class="cards" id="serials-container">
+        {% for dev in state.serials %}
+        {% set si = loop.index0 %}
+        <div class="card" id="serial-{{ si }}" style="max-width:340px;">
+          <div class="card-header">
+            <div>
+              <div class="card-title">{{ dev.name }}</div>
+              <div class="card-sub">id: {{ dev.identifier }}</div>
+              {% if dev.path %}<div class="card-sub" style="margin-top:3px;">{{ dev.path }}</div>{% endif %}
+            </div>
+            <span class="badge badge-{{ dev.status }}">{{ dev.status | replace("_", " ") }}</span>
+          </div>
+          {% if dev.status != "ok" %}
+          <div class="diagnosis diagnosis-{{ dev.status }}">
+            {% if dev.diagnosis %}{{ dev.diagnosis }}<br>{% endif %}
+            {% if dev.error %}<span style="opacity:0.7;font-size:10px;">{{ dev.error }}</span>{% endif %}
+          </div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const BENCH = {{ bench.name | tojson }};
+    const dot = document.getElementById('live-dot');
+    const lastUpdated = document.getElementById('last-updated');
+
+    function fmtTime(ts) {
+      return 'Updated ' + new Date(ts * 1000).toLocaleTimeString();
+    }
+
+    function isUnusedLabel(label) {
+      return label && label.toLowerCase().startsWith('unused');
+    }
+
+    function buildPortGrid(states, labels, onClickFn, prefix, offset = 0) {
+      return '<div class="ports-grid">' + states.map((on, i) => {
+        const label = (labels && labels[i]) || '&mdash;';
+        if (isUnusedLabel(label)) return `
+          <div class="port-cell" style="opacity:0.3;pointer-events:none">
+            <div class="port-num">${prefix}${i + offset}</div>
+            <div class="port-indicator port-off"><div class="port-dot"></div></div>
+            <div class="port-label">${label}</div>
+            <div style="height:22px"></div>
+          </div>`;
+        return `
+          <div class="port-cell">
+            <div class="port-num">${prefix}${i + offset}</div>
+            <div class="port-indicator ${on ? 'port-on' : 'port-off'}"><div class="port-dot"></div></div>
+            <div class="port-label">${label}</div>
+            <button class="port-btn" onclick="${onClickFn(i, on)}">${on ? 'off' : 'on'}</button>
+          </div>`;
+      }).join('') + '</div>';
+    }
+
+    function updateDiag(card, status, diagnosis, error) {
+      let diag = card.querySelector('.diagnosis');
+      if (status === 'ok') {
+        if (diag) diag.remove();
+        return;
+      }
+      const html = (diagnosis || '') + (error ? `<br><span style="opacity:0.7;font-size:10px;">${error}</span>` : '');
+      if (diag) {
+        diag.className = `diagnosis diagnosis-${status}`;
+        diag.innerHTML = html;
+      } else {
+        const h = card.querySelector('.card-header');
+        h.insertAdjacentHTML('afterend', `<div class="diagnosis diagnosis-${status}">${html}</div>`);
+      }
+    }
+
+    function applyHubState(hi, hub) {
+      const card = document.getElementById('hub-' + hi);
+      if (!card) return;
+      const badge = card.querySelector('.badge');
+      badge.className = 'badge badge-' + hub.status;
+      badge.textContent = hub.status.replace(/_/g, ' ');
+      updateDiag(card, hub.status, hub.diagnosis, hub.error);
+      if (hub.port_states && hub.port_states.length) {
+        let grid = card.querySelector('.ports-grid');
+        if (!grid) {
+          card.insertAdjacentHTML('beforeend',
+            buildPortGrid(hub.port_states, hub.port_labels,
+              (i) => `toggleHub(${hi}, ${i}, this)`, 'P'));
+        } else {
+          const cells = card.querySelectorAll('.port-cell');
+          hub.port_states.forEach((on, pi) => {
+            if (!cells[pi]) return;
+            if (isUnusedLabel(hub.port_labels && hub.port_labels[pi])) return;
+            cells[pi].querySelector('.port-indicator').className =
+              'port-indicator ' + (on ? 'port-on' : 'port-off');
+            const btn = cells[pi].querySelector('.port-btn');
+            if (btn) { btn.textContent = on ? 'off' : 'on'; if (!agentIsActive()) btn.disabled = false; }
+          });
+        }
+      }
+    }
+
+    function applyRelayState(ri, relay) {
+      const card = document.getElementById('relay-' + ri);
+      if (!card) return;
+      const badge = card.querySelector('.badge');
+      badge.className = 'badge badge-' + relay.status;
+      badge.textContent = relay.status.replace(/_/g, ' ');
+      updateDiag(card, relay.status, relay.diagnosis, relay.error);
+      if (relay.channel_states && relay.channel_states.length) {
+        let grid = card.querySelector('.ports-grid');
+        if (!grid) {
+          card.insertAdjacentHTML('beforeend',
+            buildPortGrid(relay.channel_states, relay.channel_labels,
+              (i) => `toggleRelay(${ri}, ${i}, this)`, 'CH'));
+        } else {
+          const cells = card.querySelectorAll('.port-cell');
+          relay.channel_states.forEach((on, ci) => {
+            if (!cells[ci]) return;
+            if (isUnusedLabel(relay.channel_labels && relay.channel_labels[ci])) return;
+            cells[ci].querySelector('.port-indicator').className =
+              'port-indicator ' + (on ? 'port-on' : 'port-off');
+            const btn = cells[ci].querySelector('.port-btn');
+            if (btn) { btn.textContent = on ? 'off' : 'on'; if (!agentIsActive()) btn.disabled = false; }
+          });
+        }
+      }
+    }
+
+    function applyDenkoviState(di, d) {
+      const card = document.getElementById('denkovi-' + di);
+      if (!card) return;
+      const badge = card.querySelector('.badge');
+      badge.className = 'badge badge-' + d.status;
+      badge.textContent = d.status.replace(/_/g, ' ');
+      updateDiag(card, d.status, d.diagnosis, d.error);
+      if (d.channel_states && d.channel_states.length) {
+        let grid = card.querySelector('.ports-grid');
+        if (!grid) {
+          card.insertAdjacentHTML('beforeend',
+            buildPortGrid(d.channel_states, d.channel_labels,
+              (i) => `toggleDenkovi(${di}, ${i}, this)`, 'Q', 1));
+        } else {
+          const cells = card.querySelectorAll('.port-cell');
+          d.channel_states.forEach((on, ci) => {
+            if (!cells[ci]) return;
+            if (isUnusedLabel(d.channel_labels && d.channel_labels[ci])) return;
+            cells[ci].querySelector('.port-indicator').className =
+              'port-indicator ' + (on ? 'port-on' : 'port-off');
+            const btn = cells[ci].querySelector('.port-btn');
+            if (btn) { btn.textContent = on ? 'off' : 'on'; if (!agentIsActive()) btn.disabled = false; }
+          });
+        }
+      }
+    }
+
+    function applySerialState(si, dev) {
+      const card = document.getElementById('serial-' + si);
+      if (!card) return;
+      const badge = card.querySelector('.badge');
+      badge.className = 'badge badge-' + dev.status;
+      badge.textContent = dev.status.replace(/_/g, ' ');
+      updateDiag(card, dev.status, dev.diagnosis, dev.error);
+    }
+
+    function applyAgentState(agent) {
+      if (!agent) return;
+      const panel = document.getElementById('safety-panel');
+      const badge = document.getElementById('agent-badge');
+      const stopBtn = document.getElementById('btn-stop-agent');
+      const restoreBtn = document.getElementById('btn-restore-agent');
+      const notice = document.getElementById('lock-notice');
+      if (!panel) return;
+
+      const active = agent.service === 'active';
+      const busy = agent.busy;
+
+      panel.className = 'safety-panel' + (busy ? ' agent-busy' : (!active ? ' agent-stopped' : ''));
+
+      if (busy) {
+        badge.className = 'badge badge-busy';
+        badge.textContent = 'BUSY';
+      } else if (active) {
+        badge.className = 'badge badge-idle';
+        badge.textContent = 'IDLE';
+      } else {
+        badge.className = 'badge badge-stopped';
+        badge.textContent = 'STOPPED';
+      }
+
+      let jobEl = panel.querySelector('.agent-job');
+      if (busy && agent.job) {
+        if (!jobEl) {
+          const infoEl = panel.querySelector('.agent-info');
+          const d = document.createElement('div');
+          d.className = 'agent-job';
+          infoEl.appendChild(d);
+          jobEl = d;
+        }
+        jobEl.textContent = 'Running build #' + agent.job.build;
+      } else if (jobEl) {
+        jobEl.remove();
+      }
+
+      if (stopBtn) { stopBtn.disabled = !active; }
+      if (restoreBtn) { restoreBtn.disabled = active; }
+      if (notice) { notice.className = 'lock-notice' + (active ? ' visible' : ''); }
+
+      document.querySelectorAll('.port-btn').forEach(btn => {
+        if (active) {
+          btn.disabled = true;
+          btn.title = 'Stop the agent before making electrical changes';
+        } else {
+          btn.title = '';
+        }
+      });
+    }
+
+    function applyState(state) {
+      if (state.timestamp) lastUpdated.textContent = fmtTime(state.timestamp);
+      if (state.agent) applyAgentState(state.agent);
+      (state.hubs || []).forEach((hub, hi) => applyHubState(hi, hub));
+      (state.relays || []).forEach((relay, ri) => applyRelayState(ri, relay));
+      (state.denkovi || []).forEach((d, di) => applyDenkoviState(di, d));
+      (state.serials || []).forEach((dev, si) => applySerialState(si, dev));
+    }
+
+    const es = new EventSource('/bench/' + BENCH + '/events');
+    es.onopen = () => { dot.className = 'connected'; };
+    es.onmessage = (e) => { try { applyState(JSON.parse(e.data)); } catch {} };
+    es.onerror = () => { dot.className = ''; };
+
+    function agentIsActive() {
+      const badge = document.getElementById('agent-badge');
+      return badge && (badge.textContent === 'IDLE' || badge.textContent === 'BUSY');
+    }
+
+    function toggleHub(hi, pi, btn) {
+      if (agentIsActive()) return;
+      btn.disabled = true;
+      fetch('/api/bench/' + BENCH + '/hub/' + hi + '/port/' + pi + '/toggle', { method: 'POST' })
+        .catch(() => { btn.disabled = false; });
+    }
+
+    function toggleRelay(ri, ci, btn) {
+      if (agentIsActive()) return;
+      btn.disabled = true;
+      fetch('/api/bench/' + BENCH + '/relay/' + ri + '/channel/' + ci + '/toggle', { method: 'POST' })
+        .catch(() => { btn.disabled = false; });
+    }
+
+    function toggleDenkovi(di, ci, btn) {
+      if (agentIsActive()) return;
+      btn.disabled = true;
+      fetch('/api/bench/' + BENCH + '/denkovi/' + di + '/channel/' + ci + '/toggle', { method: 'POST' })
+        .catch(() => { btn.disabled = false; });
+    }
+
+    function stopAgent(btn) {
+      const badge = document.getElementById('agent-badge');
+      const busy = badge && badge.textContent === 'BUSY';
+      const jobEl = document.querySelector('.agent-job');
+      const jobInfo = jobEl ? jobEl.textContent : '';
+      if (busy && !confirm('Agent is ' + jobInfo + '. Stop it and take the bench out of the CI queue?')) return;
+      btn.disabled = true;
+      fetch('/api/bench/' + BENCH + '/agent/stop', { method: 'POST' }).catch(() => { btn.disabled = false; });
+    }
+
+    function restoreAgent(btn) {
+      btn.disabled = true;
+      fetch('/api/bench/' + BENCH + '/agent/start', { method: 'POST' }).catch(() => { btn.disabled = false; });
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,63 @@
+name: Sync benches from hil_benches.pkl
+
+on:
+  schedule:
+    - cron: "0 * * * *"  # every hour
+  workflow_dispatch:      # manual trigger
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout bench-dashboard
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Fetch hil_benches.pkl from core-stack
+        env:
+          CORESTACK_TOKEN: ${{ secrets.CORESTACK_READ_TOKEN }}
+        run: |
+          curl -fsSL \
+            -H "Authorization: Bearer $CORESTACK_TOKEN" \
+            -H "Accept: application/vnd.github.raw" \
+            "https://api.github.com/repos/AppliedNeuron/core-stack/contents/vehicle_os/firmware/hardware_benches/hil_benches.pkl" \
+            -o hil_benches.pkl
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install pyyaml
+
+      - name: Run sync script
+        run: python3 scripts/sync_from_pkl.py hil_benches.pkl --out benches_config.yaml
+
+      - name: Check for changes
+        id: diff
+        run: |
+          if git diff --quiet benches_config.yaml; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Open PR if changed
+        if: steps.diff.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          BRANCH="auto/sync-benches-$(date +%Y%m%d-%H%M%S)"
+          git checkout -b "$BRANCH"
+          git add benches_config.yaml
+          git commit -m "auto: sync benches_config.yaml from hil_benches.pkl"
+          git push origin "$BRANCH"
+          gh pr create \
+            --title "auto: sync benches_config.yaml from hil_benches.pkl" \
+            --body "hil_benches.pkl changed in core-stack. Auto-generated update to benches_config.yaml." \
+            --base main \
+            --head "$BRANCH"
