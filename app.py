@@ -130,6 +130,13 @@ def _apply_powered_off(result: dict, cfg: dict, hub_states: list[dict]) -> dict:
 # Polling
 # ---------------------------------------------------------------------------
 
+def _agent_busy(ctx: BenchContext) -> bool:
+    """Return True if the BuildKite agent is currently running a build."""
+    with ctx.lock:
+        agent = ctx.state.get("agent")
+    return bool(agent and agent.get("busy"))
+
+
 def _poll_bench(ctx: BenchContext) -> dict:
     ssh = ctx.cfg["ssh"]
     host, user = ssh["host"], ssh["user"]
@@ -137,22 +144,34 @@ def _poll_bench(ctx: BenchContext) -> dict:
     python_interp = ssh.get("python_interpreter", "python3")
     devices = ctx.cfg.get("devices", {})
 
-    hubs = [
-        StarTechHub(h["serial_path"], host, user).check(h)
-        for h in devices.get("usb_hubs", [])
-    ]
-    relays = [
-        _apply_grace_period(
-            _apply_powered_off(
-                SainsmartRelay(r["identifier"], host, user,
-                               sudo_user=sudo_user,
-                               python_interpreter=python_interp).check(r),
-                r, hubs,
-            ),
-            r["identifier"], ctx,
-        )
-        for r in devices.get("relay_boards", [])
-    ]
+    # Skip hub and relay checks while a CI build is running to avoid
+    # concurrent serial port access corrupting the HIL test setup.
+    busy = _agent_busy(ctx)
+
+    if busy:
+        with ctx.lock:
+            prev = ctx.state
+        hubs = [{**h, "status": "unknown", "diagnosis": "CI build running — checks paused",
+                 "error": None} for h in prev.get("hubs", [])]
+        relays = [{**r, "status": "unknown", "diagnosis": "CI build running — checks paused",
+                   "error": None} for r in prev.get("relays", [])]
+    else:
+        hubs = [
+            StarTechHub(h["serial_path"], host, user).check(h)
+            for h in devices.get("usb_hubs", [])
+        ]
+        relays = [
+            _apply_grace_period(
+                _apply_powered_off(
+                    SainsmartRelay(r["identifier"], host, user,
+                                   sudo_user=sudo_user,
+                                   python_interpreter=python_interp).check(r),
+                    r, hubs,
+                ),
+                r["identifier"], ctx,
+            )
+            for r in devices.get("relay_boards", [])
+        ]
     serials = [
         _apply_grace_period(
             _apply_powered_off(
