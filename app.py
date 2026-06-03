@@ -130,11 +130,13 @@ def _apply_powered_off(result: dict, cfg: dict, hub_states: list[dict]) -> dict:
 # Polling
 # ---------------------------------------------------------------------------
 
-def _agent_busy(ctx: BenchContext) -> bool:
-    """Return True if the BuildKite agent is currently running a build."""
+def _agent_active(ctx: BenchContext) -> bool:
+    """Return True if the BuildKite agent service is running (idle or busy).
+    Hub/relay polling is skipped whenever the agent is active to avoid serial
+    port contention with HIL test setup."""
     with ctx.lock:
         agent = ctx.state.get("agent")
-    return bool(agent and agent.get("busy"))
+    return bool(agent and agent.get("service") == "active")
 
 
 def _poll_bench(ctx: BenchContext) -> dict:
@@ -146,14 +148,14 @@ def _poll_bench(ctx: BenchContext) -> dict:
 
     # Skip hub and relay checks while a CI build is running to avoid
     # concurrent serial port access corrupting the HIL test setup.
-    busy = _agent_busy(ctx)
+    agent_active = _agent_active(ctx)
 
-    if busy:
+    if agent_active:
         with ctx.lock:
             prev = ctx.state
-        hubs = [{**h, "status": "unknown", "diagnosis": "CI build running — checks paused",
+        hubs = [{**h, "status": "unknown", "diagnosis": "Agent active — checks paused to avoid contention",
                  "error": None} for h in prev.get("hubs", [])]
-        relays = [{**r, "status": "unknown", "diagnosis": "CI build running — checks paused",
+        relays = [{**r, "status": "unknown", "diagnosis": "Agent active — checks paused to avoid contention",
                    "error": None} for r in prev.get("relays", [])]
     else:
         hubs = [
