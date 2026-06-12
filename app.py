@@ -10,7 +10,7 @@ from typing import Any
 
 import os
 import yaml
-from flask import Flask, Response, abort, jsonify, render_template
+from flask import Flask, Response, abort, jsonify, render_template, request
 
 from devices.buildkite_agent import BuildkiteAgent
 from devices.denkovi_relay import DenkoviRelay
@@ -448,6 +448,22 @@ def agent_start(name: str):
         return jsonify({"error": "no agent configured"}), 404
     try:
         result = ctx.agent.start()
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+    threading.Thread(target=_repoll_after_toggle, args=(ctx,), daemon=True).start()
+    return jsonify(result)
+
+
+@app.route("/api/bench/<name>/agent/run-test", methods=["POST"])
+def agent_run_test(name: str):
+    ctx = _benches.get(name)
+    if not ctx or not ctx.agent:
+        return jsonify({"error": "no agent configured"}), 404
+    data = request.get_json(silent=True) or {}
+    hil_pipeline = data.get("hil_pipeline", "vos")
+    branch = data.get("branch", "main")
+    try:
+        result = ctx.agent.run_test(hil_pipeline=hil_pipeline, branch=branch)
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
     threading.Thread(target=_repoll_after_toggle, args=(ctx,), daemon=True).start()

@@ -141,6 +141,19 @@
     .safety-btn:disabled { opacity: 0.4; cursor: not-allowed; }
     .btn-stop    { background: #450a0a; border-color: var(--red);    color: var(--red); }
     .btn-restore { background: #14532d; border-color: var(--green);  color: var(--green); }
+    .btn-run-test { background: #1e3a5f; border-color: #3b82f6; color: #60a5fa; }
+    .btn-run-test:hover:not(:disabled) { background: #1e4a7f; }
+    .run-test-form { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .run-test-select {
+      font-size: 11px; font-family: inherit; padding: 5px 8px; border-radius: 5px;
+      background: #1f2937; border: 1px solid var(--border); color: var(--text); cursor: pointer;
+    }
+    .run-test-result {
+      font-size: 10px; padding: 6px 10px; border-radius: 4px; margin-top: 8px;
+      background: #0f1f35; border: 1px solid #3b82f6; color: #93c5fd; display: none;
+    }
+    .run-test-result a { color: #60a5fa; }
+    .run-test-result.error { background: #1c0a0a; border-color: var(--red); color: #fca5a5; }
 
     .lock-notice {
       font-size: 10px; color: var(--amber); display: none;
@@ -204,6 +217,21 @@
               Restore Agent
             </button>
           </div>
+          <div class="run-test-form" style="margin-top:8px;">
+            <select class="run-test-select" id="hil-pipeline-select">
+              <option value="vos">vos</option>
+              <option value="mosaic">mosaic</option>
+              <option value="onroad">onroad</option>
+            </select>
+            <input type="text" id="hil-branch-input" value="main"
+              style="font-size:11px;font-family:inherit;padding:5px 8px;border-radius:5px;
+                     background:#1f2937;border:1px solid var(--border);color:var(--text);width:100px;"
+              placeholder="branch">
+            <button class="safety-btn btn-run-test" id="btn-run-test" onclick="runTest(this)">
+              Run Test
+            </button>
+          </div>
+          <div class="run-test-result" id="run-test-result"></div>
         </div>
       </div>
       <div class="lock-notice {% if a.service == 'active' %}visible{% endif %}" id="lock-notice">
@@ -629,6 +657,38 @@
     function restoreAgent(btn) {
       btn.disabled = true;
       fetch('/api/bench/' + BENCH + '/agent/start', { method: 'POST' }).catch(() => { btn.disabled = false; });
+    }
+
+    function runTest(btn) {
+      const pipeline = document.getElementById('hil-pipeline-select').value;
+      const branch = document.getElementById('hil-branch-input').value || 'main';
+      const resultEl = document.getElementById('run-test-result');
+      if (!confirm(`Run HIL test on ${BENCH}?\n\nPipeline: ${pipeline}\nBranch: ${branch}\n\nThis will put the bench in debug mode.`)) return;
+      btn.disabled = true;
+      resultEl.style.display = 'none';
+      fetch('/api/bench/' + BENCH + '/agent/run-test', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({hil_pipeline: pipeline, branch: branch}),
+      })
+        .then(r => r.json())
+        .then(data => {
+          if (data.error) {
+            resultEl.className = 'run-test-result error';
+            resultEl.textContent = 'Error: ' + data.error;
+          } else {
+            resultEl.className = 'run-test-result';
+            resultEl.innerHTML = `Build #${data.build_number} triggered — <a href="${data.web_url}" target="_blank">view on Buildkite</a>`;
+          }
+          resultEl.style.display = 'block';
+          btn.disabled = false;
+        })
+        .catch(err => {
+          resultEl.className = 'run-test-result error';
+          resultEl.textContent = 'Request failed: ' + err;
+          resultEl.style.display = 'block';
+          btn.disabled = false;
+        });
     }
   </script>
 </body>

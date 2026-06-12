@@ -1,9 +1,15 @@
 """BuildKite agent status, stop, and start via SSH."""
 from __future__ import annotations
 
+import os
 import textwrap
 
+import requests
+
 from devices.ssh_runner import ssh_exec
+
+BUILDKITE_ORG = "mosaic"
+BUILDKITE_PIPELINE = "core-stack-fw-hil-tests-only"
 
 _STATUS_SCRIPT = textwrap.dedent("""\
     import json, subprocess
@@ -41,6 +47,16 @@ _BK_DEBUG_SCRIPT = textwrap.dedent("""\
     import json, subprocess
     r = subprocess.run([command], capture_output=True, text=True)
     print(json.dumps({"success": r.returncode == 0, "stderr": r.stderr.strip() or None}))
+""")
+
+_DEBUG_START_SCRIPT = textwrap.dedent("""\
+    import json, subprocess
+    r1 = subprocess.run(['bk-debug-start'], capture_output=True, text=True)
+    r2 = subprocess.run(['bk-agent-service', 'start'], capture_output=True, text=True)
+    print(json.dumps({
+        "success": r1.returncode == 0 and r2.returncode == 0,
+        "stderr": ((r1.stderr + r2.stderr).strip()) or None,
+    }))
 """)
 
 
@@ -83,3 +99,28 @@ class BuildkiteAgent:
             f"command = 'bk-debug-stop'\n" + _BK_DEBUG_SCRIPT,
             timeout=60,
         )
+
+    def run_test(self, hil_pipeline: str = "vos", branch: str = "main") -> dict:
+        """Put bench in debug mode and trigger a Buildkite HIL test build."""
+        ssh_exec(self._host, BK_DEBUG_USER, _DEBUG_START_SCRIPT, timeout=60)
+
+        token = os.environ.get("BUILDKITE_API_TOKEN", "")
+        if not token:
+            raise RuntimeError("BUILDKITE_API_TOKEN environment variable not set")
+
+        resp = requests.post(
+            f"https://api.buildkite.com/v2/organizations/{BUILDKITE_ORG}"
+            f"/pipelines/{BUILDKITE_PIPELINE}/builds",
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            json={
+                "branch": branch,
+                "env": {
+                    "HIL_PIPELINES": hil_pipeline,
+                    "AGENT_TAGS": f"hostname={self.agent_name}",
+                },
+            },
+            timeout=15,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        return {"build_number": data.get("number"), "web_url": data.get("web_url")}
