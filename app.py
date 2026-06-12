@@ -153,9 +153,9 @@ def _poll_bench(ctx: BenchContext) -> dict:
     if agent_active:
         with ctx.lock:
             prev = ctx.state
-        hubs = [{**h, "status": "unknown", "diagnosis": "Agent active — checks paused to avoid contention",
+        hubs = [{**h, "diagnosis": "Agent active — checks paused to avoid contention",
                  "error": None} for h in prev.get("hubs", [])]
-        relays = [{**r, "status": "unknown", "diagnosis": "Agent active — checks paused to avoid contention",
+        relays = [{**r, "diagnosis": "Agent active — checks paused to avoid contention",
                    "error": None} for r in prev.get("relays", [])]
     else:
         hubs = [
