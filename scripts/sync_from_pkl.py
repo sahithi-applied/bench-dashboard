@@ -172,7 +172,8 @@ def _parse_relay(text: str, var_name: str) -> Optional[Relay]:
     for m in re.finditer(r'\["([^"]+)"\]\s*=\s*new\s*\{([^}]*)\}', block, re.DOTALL):
         ch_name, ch_body = m.group(1), m.group(2)
         if ch_name.startswith('_'):
-            label = f"unused_ch{re.search(r'channel_idx.*?(\d+)', ch_body).group(1) if re.search(r'channel_idx.*?(\d+)', ch_body) else '?'}"
+            _m = re.search(r'channel_idx.*?(\d+)', ch_body)
+            label = f"unused_ch{_m.group(1) if _m else '?'}"
         else:
             label = ch_name
         idx_m = re.search(r'channel_idx\s*=\s*(\d+)', ch_body)
