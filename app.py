@@ -454,6 +454,45 @@ def agent_start(name: str):
     return jsonify(result)
 
 
+@app.route("/api/bench/<name>/power-cycle-dut", methods=["POST"])
+def power_cycle_dut(name: str):
+    ctx = _benches.get(name)
+    if not ctx:
+        abort(404)
+    relays_cfg = ctx.cfg.get("devices", {}).get("relay_boards", [])
+    ssh = ctx.cfg["ssh"]
+
+    main_12v_relay_idx = None
+    main_12v_ch_idx = None
+    for ri, relay in enumerate(relays_cfg):
+        for ci, ch in enumerate(relay.get("channels", [])):
+            if ch.get("label") == "main_12v":
+                main_12v_relay_idx = ri
+                main_12v_ch_idx = ci
+                break
+        if main_12v_relay_idx is not None:
+            break
+
+    if main_12v_relay_idx is None:
+        return jsonify({"error": "main_12v channel not found on this bench"}), 404
+
+    relay_cfg = relays_cfg[main_12v_relay_idx]
+    relay = SainsmartRelay(
+        relay_cfg["identifier"], ssh["host"], ssh["user"],
+        sudo_user=ssh.get("sudo_user"),
+        python_interpreter=ssh.get("python_interpreter", "python3"),
+    )
+    try:
+        relay.set_channel(main_12v_ch_idx, False)
+        time.sleep(2)
+        relay.set_channel(main_12v_ch_idx, True)
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+    threading.Thread(target=_repoll_after_toggle, args=(ctx,), daemon=True).start()
+    return jsonify({"success": True})
+
+
 @app.route("/api/bench/<name>/agent/run-test", methods=["POST"])
 def agent_run_test(name: str):
     ctx = _benches.get(name)

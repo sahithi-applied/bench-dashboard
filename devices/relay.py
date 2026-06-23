@@ -65,6 +65,28 @@ _CHECK_BODY = textwrap.dedent("""\
     print(json.dumps(result))
 """)
 
+_SET_BODY = textwrap.dedent("""\
+    import json, time
+    from pyftdi.ftdi import Ftdi
+    ftdi = Ftdi()
+    try:
+        ftdi.open_from_url(f"ftdi://::{identifier}/1")
+        ftdi.set_bitmode(bitmask=0xFF, mode=Ftdi.BitMode.BITBANG)
+        time.sleep(0.05)
+        raw = ftdi.read_pins()
+        states = [(raw >> i) & 1 for i in range(4)]
+        if states[ch_idx] != desired_state:
+            states[ch_idx] = desired_state
+            ftdi.write_data(bytes([sum(s << i for i, s in enumerate(states))]))
+        new_state = bool(states[ch_idx])
+    finally:
+        try:
+            ftdi.close(freeze=True)
+        except Exception:
+            pass
+    print(json.dumps({"channel": ch_idx, "new_state": new_state}))
+""")
+
 _TOGGLE_BODY = textwrap.dedent("""\
     import json, time
     from pyftdi.ftdi import Ftdi
@@ -119,6 +141,16 @@ class SainsmartRelay:
         return ssh_exec(
             self._host, self._user,
             _BAZEL_PYPATH_PREAMBLE + f"identifier = {self._identifier!r}\nch_idx = {ch_idx}\n" + _TOGGLE_BODY,
+            sudo_user=self._sudo_user,
+            python_interpreter=self._python_interpreter,
+        )
+
+    def set_channel(self, ch_idx: int, state: bool) -> dict:
+        return ssh_exec(
+            self._host, self._user,
+            _BAZEL_PYPATH_PREAMBLE
+            + f"identifier = {self._identifier!r}\nch_idx = {ch_idx}\ndesired_state = {int(state)}\n"
+            + _SET_BODY,
             sudo_user=self._sudo_user,
             python_interpreter=self._python_interpreter,
         )

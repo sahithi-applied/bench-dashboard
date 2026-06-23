@@ -143,6 +143,13 @@
     .btn-restore { background: #14532d; border-color: var(--green);  color: var(--green); }
     .btn-run-test { background: #1e3a5f; border-color: #3b82f6; color: #60a5fa; }
     .btn-run-test:hover:not(:disabled) { background: #1e4a7f; }
+    .btn-power-cycle { background: #2d1f00; border-color: var(--amber); color: var(--amber); }
+    .btn-power-cycle:hover:not(:disabled) { background: #3d2a00; }
+    .preflight-warn {
+      font-size: 10px; padding: 6px 10px; border-radius: 4px; margin-top: 8px;
+      background: #1c1306; border: 1px solid var(--amber); color: #fcd34d; display: none;
+    }
+    .preflight-warn.visible { display: block; }
     .run-test-form { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
     .run-test-select {
       font-size: 11px; font-family: inherit; padding: 5px 8px; border-radius: 5px;
@@ -217,6 +224,12 @@
               Restore Agent
             </button>
           </div>
+          <div style="margin-top:8px;">
+            <button class="safety-btn btn-power-cycle" id="btn-power-cycle" onclick="powerCycleDut(this)"
+              {% if a.service == "active" %}disabled title="Stop the agent before power cycling"{% endif %}>
+              Power Cycle DUT
+            </button>
+          </div>
           <div class="run-test-form" style="margin-top:8px;">
             <select class="run-test-select" id="hil-pipeline-select">
               <option value="vos">vos</option>
@@ -232,6 +245,7 @@
             </button>
           </div>
           <div class="run-test-result" id="run-test-result"></div>
+          <div class="preflight-warn" id="preflight-warn"></div>
         </div>
       </div>
       <div class="lock-notice {% if a.service == 'active' %}visible{% endif %}" id="lock-notice">
@@ -592,6 +606,8 @@
 
       if (stopBtn) { stopBtn.disabled = !active; }
       if (restoreBtn) { restoreBtn.disabled = active; }
+      const powerCycleBtn = document.getElementById('btn-power-cycle');
+      if (powerCycleBtn) { powerCycleBtn.disabled = active; powerCycleBtn.title = active ? 'Stop the agent before power cycling' : ''; }
       if (notice) { notice.className = 'lock-notice' + (active ? ' visible' : ''); }
 
       document.querySelectorAll('.port-btn').forEach(btn => {
@@ -659,11 +675,70 @@
       fetch('/api/bench/' + BENCH + '/agent/start', { method: 'POST' }).catch(() => { btn.disabled = false; });
     }
 
+    function powerCycleDut(btn) {
+      if (!confirm('Power cycle the DUT on ' + BENCH + '?\n\nmain_12v will be turned OFF for 2 seconds then back ON.')) return;
+      btn.disabled = true;
+      btn.textContent = 'Cycling...';
+      fetch('/api/bench/' + BENCH + '/power-cycle-dut', { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+          btn.textContent = 'Power Cycle DUT';
+          btn.disabled = false;
+          if (data.error) alert('Power cycle failed: ' + data.error);
+        })
+        .catch(err => {
+          btn.textContent = 'Power Cycle DUT';
+          btn.disabled = false;
+          alert('Request failed: ' + err);
+        });
+    }
+
+    function _preflightCheck() {
+      const issues = [];
+      document.querySelectorAll('[id^="hub-"]').forEach(card => {
+        const badge = card.querySelector('.badge');
+        if (badge && badge.textContent.trim() !== 'ok') {
+          const title = card.querySelector('.card-title');
+          issues.push('Hub "' + (title ? title.textContent : '?') + '" is ' + badge.textContent.trim());
+        }
+      });
+      document.querySelectorAll('[id^="relay-"]').forEach(card => {
+        const badge = card.querySelector('.badge');
+        if (badge && badge.textContent.trim() !== 'ok') {
+          const title = card.querySelector('.card-title');
+          issues.push('Relay "' + (title ? title.textContent : '?') + '" is ' + badge.textContent.trim());
+        }
+      });
+      document.querySelectorAll('[id^="serial-"]').forEach(card => {
+        const badge = card.querySelector('.badge');
+        if (badge && badge.textContent.trim() !== 'ok') {
+          const title = card.querySelector('.card-title');
+          issues.push('Serial "' + (title ? title.textContent : '?') + '" is ' + badge.textContent.trim());
+        }
+      });
+      return issues;
+    }
+
     function runTest(btn) {
       const pipeline = document.getElementById('hil-pipeline-select').value;
       const branch = document.getElementById('hil-branch-input').value || 'main';
       const resultEl = document.getElementById('run-test-result');
-      if (!confirm(`Run HIL test on ${BENCH}?\n\nPipeline: ${pipeline}\nBranch: ${branch}\n\nThis will put the bench in debug mode.`)) return;
+      const preflightEl = document.getElementById('preflight-warn');
+
+      const issues = _preflightCheck();
+      if (preflightEl) {
+        if (issues.length > 0) {
+          preflightEl.innerHTML = '⚠ Pre-test warnings:<br>' + issues.map(i => '&bull; ' + i).join('<br>');
+          preflightEl.className = 'preflight-warn visible';
+        } else {
+          preflightEl.className = 'preflight-warn';
+        }
+      }
+
+      const warningText = issues.length > 0
+        ? '\n\n⚠ Warnings:\n' + issues.map(i => '• ' + i).join('\n') + '\n\nProceed anyway?'
+        : '';
+      if (!confirm(`Run HIL test on ${BENCH}?\n\nPipeline: ${pipeline}\nBranch: ${branch}\n\nThis will put the bench in debug mode.${warningText}`)) return;
       btn.disabled = true;
       resultEl.style.display = 'none';
       fetch('/api/bench/' + BENCH + '/agent/run-test', {
