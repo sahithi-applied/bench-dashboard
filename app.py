@@ -56,6 +56,7 @@ class BenchContext:
     subscribers_lock: threading.Lock = field(default_factory=threading.Lock)
     agent: Any = None
     last_device_ok: dict = field(default_factory=dict)
+    agent_idle_since: float = 0.0
 
 
 def _make_bench_context(cfg: dict) -> BenchContext:
@@ -131,13 +132,41 @@ def _apply_powered_off(result: dict, cfg: dict, hub_states: list[dict]) -> dict:
 # Polling
 # ---------------------------------------------------------------------------
 
+_AGENT_IDLE_COOLDOWN_S = 30.0
+
 def _agent_active(ctx: BenchContext) -> bool:
-    """Return True if the BuildKite agent service is running (idle or busy).
-    Hub/relay polling is skipped whenever the agent is active to avoid serial
-    port contention with HIL test setup."""
+    """Return True if hub/relay polling should be paused.
+
+    Pauses when agent service is active (idle or busy). Also enforces a
+    30s cooldown after going idle — prevents a new build starting between
+    poll cycles from racing with hardware checks."""
     with ctx.lock:
         agent = ctx.state.get("agent")
-    return bool(agent and agent.get("service") == "active")
+        idle_since = ctx.agent_idle_since
+
+    if not agent:
+        return False
+
+    service_active = agent.get("service") == "active"
+
+    if service_active:
+        if agent.get("busy"):
+            # reset cooldown timer whenever busy
+            with ctx.lock:
+                ctx.agent_idle_since = time.time()
+        elif idle_since == 0.0:
+            # first time we see idle — start cooldown
+            with ctx.lock:
+                ctx.agent_idle_since = time.time()
+        return True
+
+    # service is stopped — check if cooldown has elapsed
+    if idle_since > 0.0 and time.time() - idle_since < _AGENT_IDLE_COOLDOWN_S:
+        return True
+
+    with ctx.lock:
+        ctx.agent_idle_since = 0.0
+    return False
 
 
 def _poll_bench(ctx: BenchContext) -> dict:
