@@ -400,6 +400,35 @@
     </section>
     {% endif %}
 
+    {% if state.intrepid %}
+    <section>
+      <h2>Intrepid CAN</h2>
+      <div class="cards" id="intrepid-container">
+        {% for dev in state.intrepid %}
+        {% set ii = loop.index0 %}
+        <div class="card" id="intrepid-{{ ii }}" style="max-width:340px;">
+          <div class="card-header">
+            <div>
+              <div class="card-title">{{ dev.name }}</div>
+              <div class="card-sub">serial: {{ dev.serial_number }}</div>
+              {% if dev.interfaces %}
+              <div class="card-sub" style="margin-top:3px;">{{ dev.interfaces | join(', ') }}</div>
+              {% endif %}
+            </div>
+            <span class="badge badge-{{ dev.status }}">{{ dev.status | replace("_", " ") }}</span>
+          </div>
+          {% if dev.status != "ok" %}
+          <div class="diagnosis diagnosis-{{ dev.status }}">
+            {% if dev.diagnosis %}{{ dev.diagnosis }}<br>{% endif %}
+            {% if dev.error %}<span style="opacity:0.7;font-size:10px;">{{ dev.error }}</span>{% endif %}
+          </div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
+
     <section>
       <h2>Serial / Debug Devices</h2>
       <div class="cards" id="serials-container">

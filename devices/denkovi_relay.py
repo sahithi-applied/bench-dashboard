@@ -71,3 +71,10 @@ class DenkoviRelay:
         relay_num = ch_idx + 1
         self._get(extra_params={f"Relay{relay_num}": "1" if new_state else "0"})
         return {"channel": ch_idx, "new_state": new_state}
+
+    def set_channel(self, ch_idx: int, state: bool) -> dict:
+        if ch_idx < 0 or ch_idx >= _NUM_CHANNELS:
+            raise ValueError(f"Channel {ch_idx} out of range (0-{_NUM_CHANNELS - 1})")
+        relay_num = ch_idx + 1
+        self._get(extra_params={f"Relay{relay_num}": "1" if state else "0"})
+        return {"channel": ch_idx, "new_state": state}

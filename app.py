@@ -16,6 +16,7 @@ from devices.buildkite_agent import BuildkiteAgent
 from devices.denkovi_relay import DenkoviRelay
 from devices.ethernet_device import EthernetDevice
 from devices.hub import StarTechHub
+from devices.intrepid import IntrepidDevice
 from devices.labjack import LabJackDevice
 from devices.relay import SainsmartRelay
 from devices.serial_device import SerialDevice
@@ -47,7 +48,7 @@ ENUMERATION_GRACE_S = 30.0
 class BenchContext:
     cfg: dict
     state: dict = field(default_factory=lambda: {
-        "hubs": [], "relays": [], "serials": [], "denkovi": [],
+        "hubs": [], "relays": [], "serials": [], "denkovi": [], "intrepid": [],
         "agent": None, "timestamp": 0.0,
     })
     lock: threading.Lock = field(default_factory=threading.Lock)
@@ -157,6 +158,7 @@ def _poll_bench(ctx: BenchContext) -> dict:
                  "error": None} for h in prev.get("hubs", [])]
         relays = [{**r, "diagnosis": "Agent active — checks paused to avoid contention",
                    "error": None} for r in prev.get("relays", [])]
+        intrepid = prev.get("intrepid", [])
     else:
         hubs = [
             StarTechHub(h["serial_path"], host, user).check(h)
@@ -202,10 +204,14 @@ def _poll_bench(ctx: BenchContext) -> dict:
         DenkoviRelay(d["host"], d.get("port", 80), d.get("password", "admin")).check(d)
         for d in devices.get("denkovi_relays", [])
     ]
+    intrepid = [
+        IntrepidDevice(i["serial_number"], host, user).check(i)
+        for i in devices.get("intrepid_devices", [])
+    ]
     agent = ctx.agent.status() if ctx.agent else None
     return {
         "hubs": hubs, "relays": relays, "serials": serials + labjacks + eth_devices,
-        "denkovi": denkovi, "agent": agent, "timestamp": time.time(),
+        "denkovi": denkovi, "intrepid": intrepid, "agent": agent, "timestamp": time.time(),
     }
 
 
@@ -459,38 +465,47 @@ def power_cycle_dut(name: str):
     ctx = _benches.get(name)
     if not ctx:
         abort(404)
-    relays_cfg = ctx.cfg.get("devices", {}).get("relay_boards", [])
+    devices = ctx.cfg.get("devices", {})
     ssh = ctx.cfg["ssh"]
 
-    main_12v_relay_idx = None
-    main_12v_ch_idx = None
-    for ri, relay in enumerate(relays_cfg):
-        for ci, ch in enumerate(relay.get("channels", [])):
+    # Search Sainsmart relay_boards first (Palm Proto)
+    for relay_cfg in devices.get("relay_boards", []):
+        for ci, ch in enumerate(relay_cfg.get("channels", [])):
             if ch.get("label") == "main_12v":
-                main_12v_relay_idx = ri
-                main_12v_ch_idx = ci
-                break
-        if main_12v_relay_idx is not None:
-            break
+                relay = SainsmartRelay(
+                    relay_cfg["identifier"], ssh["host"], ssh["user"],
+                    sudo_user=ssh.get("sudo_user"),
+                    python_interpreter=ssh.get("python_interpreter", "python3"),
+                )
+                try:
+                    relay.set_channel(ci, False)
+                    time.sleep(2)
+                    relay.set_channel(ci, True)
+                except Exception as exc:
+                    return jsonify({"error": str(exc)}), 500
+                threading.Thread(target=_repoll_after_toggle, args=(ctx,), daemon=True).start()
+                return jsonify({"success": True})
 
-    if main_12v_relay_idx is None:
-        return jsonify({"error": "main_12v channel not found on this bench"}), 404
+    # Search Denkovi denkovi_relays (High Pine / Palm 2.0)
+    for di, denkovi_cfg in enumerate(devices.get("denkovi_relays", [])):
+        for ci, ch in enumerate(denkovi_cfg.get("channels", [])):
+            label = ch.get("label", "")
+            if "kl30" in label.lower() or "main_12v" in label.lower() or "pwr" in label.lower():
+                denkovi = DenkoviRelay(
+                    denkovi_cfg["host"],
+                    denkovi_cfg.get("port", 80),
+                    denkovi_cfg.get("password", "admin"),
+                )
+                try:
+                    denkovi.set_channel(ci, False)
+                    time.sleep(2)
+                    denkovi.set_channel(ci, True)
+                except Exception as exc:
+                    return jsonify({"error": str(exc)}), 500
+                threading.Thread(target=_repoll_after_toggle, args=(ctx,), daemon=True).start()
+                return jsonify({"success": True})
 
-    relay_cfg = relays_cfg[main_12v_relay_idx]
-    relay = SainsmartRelay(
-        relay_cfg["identifier"], ssh["host"], ssh["user"],
-        sudo_user=ssh.get("sudo_user"),
-        python_interpreter=ssh.get("python_interpreter", "python3"),
-    )
-    try:
-        relay.set_channel(main_12v_ch_idx, False)
-        time.sleep(2)
-        relay.set_channel(main_12v_ch_idx, True)
-    except Exception as exc:
-        return jsonify({"error": str(exc)}), 500
-
-    threading.Thread(target=_repoll_after_toggle, args=(ctx,), daemon=True).start()
-    return jsonify({"success": True})
+    return jsonify({"error": "No power channel found on this bench"}), 404
 
 
 @app.route("/api/bench/<name>/agent/run-test", methods=["POST"])

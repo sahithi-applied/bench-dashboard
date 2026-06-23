@@ -80,6 +80,24 @@ class SerialInstrument:
 
 
 @dataclass
+class DenkoviDevice:
+    var_name: str
+    name: str
+    host: str
+    port: int = 80
+    password: str = "admin"
+    channels: list[dict] = field(default_factory=list)
+
+
+@dataclass
+class IntrepidDevice:
+    var_name: str
+    name: str
+    serial_number: str
+    channel_names: list[str] = field(default_factory=list)
+
+
+@dataclass
 class Bench:
     benchname: str
     hostname: str
@@ -88,6 +106,8 @@ class Bench:
     labjacks: list[LabJack] = field(default_factory=list)
     eth_adapters: list[EthernetAdapter] = field(default_factory=list)
     serial_instruments: list[SerialInstrument] = field(default_factory=list)
+    denkovi_devices: list[DenkoviDevice] = field(default_factory=list)
+    intrepid_devices: list[IntrepidDevice] = field(default_factory=list)
     nodes_order: list[str] = field(default_factory=list)
 
 
@@ -215,6 +235,42 @@ def _parse_eth(text: str, var_name: str) -> Optional[EthernetAdapter]:
     return EthernetAdapter(var_name=var_name, name=name, interface=interface, device_ip=device_ip)
 
 
+def _parse_denkovi(text: str, var_name: str) -> Optional[DenkoviDevice]:
+    block = _extract_local_block(text, var_name)
+    if not block:
+        return None
+    name = _first(r'name\s*=\s*"([^"]+)"', block) or var_name
+    host = _first(r'host\s*=\s*"([^"]+)"', block) or ""
+    port = int(_first(r'port\s*=\s*(\d+)', block) or "80")
+    password = _first(r'password\s*=\s*"([^"]+)"', block) or "admin"
+    channels = []
+    for m in re.finditer(r'\[(\d+)\]\s*=\s*new\s*\{([^}]*)\}', block, re.DOTALL):
+        idx, ch_body = int(m.group(1)), m.group(2)
+        label_m = re.search(r'name\s*=\s*"([^"]+)"', ch_body)
+        label = label_m.group(1) if label_m else f"ch{idx}"
+        channels.append({"label": label, "idx": idx})
+    channels.sort(key=lambda c: c["idx"])
+    return DenkoviDevice(var_name=var_name, name=name, host=host, port=port,
+                         password=password, channels=channels)
+
+
+def _parse_intrepid(text: str, var_name: str) -> Optional[IntrepidDevice]:
+    block = _extract_local_block(text, var_name)
+    if not block:
+        return None
+    name = _first(r'name\s*=\s*"([^"]+)"', block) or var_name
+    serial = _first(r'serial_number\s*=\s*"([^"]+)"', block) or ""
+    channel_slots = ["hscan", "hscan2", "hscan3", "hscan4", "hscan5", "hscan6", "hscan7",
+                     "mscan", "dwcan09", "dwcan10", "dwcan11", "dwcan12", "dwcan13", "dwcan14", "dwcan15"]
+    channel_names = []
+    for slot in channel_slots:
+        slot_m = re.search(rf'{slot}\s*\{{[^}}]*name\s*=\s*"([^"]+)"', block)
+        if slot_m:
+            channel_names.append(slot_m.group(1))
+    return IntrepidDevice(var_name=var_name, name=name, serial_number=serial,
+                          channel_names=channel_names)
+
+
 def _parse_bench(block: str) -> Optional[Bench]:
     benchname = _first(r'benchname\s*=\s*"([^"]+)"', block)
     hostname = _first(r'hostname\s*=\s*"([^"]+)"', block)
@@ -228,16 +284,20 @@ def _parse_bench(block: str) -> Optional[Bench]:
         r'local\s+(\w+)\s*=\s*new\s+teq_devices\.(\w+)', block
     )
 
-    hub_vars, relay_vars, lj_vars, eth_vars = [], [], [], []
+    hub_vars, relay_vars, lj_vars, eth_vars, denkovi_vars, intrepid_vars = [], [], [], [], [], []
     for var_name, type_name in local_vars:
         if 'Hub' in type_name:
             hub_vars.append(var_name)
+        elif 'DenkoviRelay' in type_name:
+            denkovi_vars.append(var_name)
         elif 'Relay' in type_name:
             relay_vars.append(var_name)
         elif 'LabJack' in type_name:
             lj_vars.append(var_name)
         elif 'Ethernet' in type_name:
             eth_vars.append(var_name)
+        elif 'Intrepid' in type_name or 'NeoVi' in type_name:
+            intrepid_vars.append(var_name)
 
     for v in hub_vars:
         h = _parse_hub(block, v)
@@ -258,6 +318,16 @@ def _parse_bench(block: str) -> Optional[Bench]:
         e = _parse_eth(block, v)
         if e:
             bench.eth_adapters.append(e)
+
+    for v in denkovi_vars:
+        d = _parse_denkovi(block, v)
+        if d:
+            bench.denkovi_devices.append(d)
+
+    for v in intrepid_vars:
+        ip = _parse_intrepid(block, v)
+        if ip:
+            bench.intrepid_devices.append(ip)
 
     # test_equipment nodes order (determines hub indices)
     nodes_m = re.search(r'nodes\s*=\s*new\s*\{([^}]+)\}', block, re.DOTALL)
@@ -373,21 +443,42 @@ def _bench_to_config(bench: Bench) -> dict:
             entry["device_ip"] = e.device_ip
         ethernet_devices.append(entry)
 
+    denkovi_relays = []
+    for d in bench.denkovi_devices:
+        entry: dict = {
+            "name": d.name,
+            "host": d.host,
+        }
+        if d.port != 80:
+            entry["port"] = d.port
+        if d.password != "admin":
+            entry["password"] = d.password
+        entry["channels"] = [{"label": ch["label"]} for ch in d.channels]
+        denkovi_relays.append(entry)
+
+    intrepid_devices = []
+    for ip in bench.intrepid_devices:
+        entry = {
+            "name": ip.name,
+            "serial_number": ip.serial_number,
+        }
+        if ip.channel_names:
+            entry["channel_names"] = ip.channel_names
+        intrepid_devices.append(entry)
+
     devices: dict = {}
-    if usb_hubs:
-        devices["usb_hubs"] = usb_hubs
-    else:
-        devices["usb_hubs"] = []
-    if relay_boards:
-        devices["relay_boards"] = relay_boards
-    else:
-        devices["relay_boards"] = []
+    devices["usb_hubs"] = usb_hubs
+    devices["relay_boards"] = relay_boards
+    if denkovi_relays:
+        devices["denkovi_relays"] = denkovi_relays
     if serial_devices:
         devices["serial_devices"] = serial_devices
     if labjack_devices:
         devices["labjack_devices"] = labjack_devices
     if ethernet_devices:
         devices["ethernet_devices"] = ethernet_devices
+    if intrepid_devices:
+        devices["intrepid_devices"] = intrepid_devices
 
     return {
         "name": short_name,
