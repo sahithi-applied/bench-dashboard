@@ -59,6 +59,21 @@ _DEBUG_START_SCRIPT = textwrap.dedent("""\
     }))
 """)
 
+_WAIT_FOR_ACTIVE_SCRIPT = textwrap.dedent("""\
+    import json, subprocess, time, sys
+
+    deadline = time.time() + timeout_s
+    while time.time() < deadline:
+        r = subprocess.run(["systemctl", "is-active", service_name],
+                           capture_output=True, text=True)
+        if r.stdout.strip() == "active":
+            print(json.dumps({"ready": True}))
+            sys.exit(0)
+        time.sleep(1)
+    print(json.dumps({"ready": False,
+                      "error": f"Agent did not become active within {timeout_s}s"}))
+""")
+
 
 BK_DEBUG_USER = "bk-debug"
 
@@ -100,9 +115,23 @@ class BuildkiteAgent:
             timeout=60,
         )
 
-    def run_test(self, hil_pipeline: str = "vos", branch: str = "main") -> dict:
-        """Put bench in debug mode and trigger a Buildkite HIL test build."""
-        ssh_exec(self._host, BK_DEBUG_USER, _DEBUG_START_SCRIPT, timeout=60)
+    def run_test(self, hil_pipeline: str = "vos", branch: str = "main",
+                 agent_ready_timeout: int = 30) -> dict:
+        """Put bench in debug mode, wait for agent to be active, then trigger build."""
+        start_result = ssh_exec(self._host, BK_DEBUG_USER, _DEBUG_START_SCRIPT, timeout=60)
+        if not start_result.get("success"):
+            raise RuntimeError(f"bk-debug-start failed: {start_result.get('stderr')}")
+
+        wait_result = ssh_exec(
+            self._host, self._user,
+            f"service_name = {self._service!r}\ntimeout_s = {agent_ready_timeout}\n"
+            + _WAIT_FOR_ACTIVE_SCRIPT,
+            timeout=agent_ready_timeout + 10,
+        )
+        if not wait_result.get("ready"):
+            raise RuntimeError(
+                wait_result.get("error", f"Agent not active after {agent_ready_timeout}s")
+            )
 
         token = os.environ.get("BUILDKITE_API_TOKEN", "")
         if not token:
