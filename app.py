@@ -13,7 +13,7 @@ import yaml
 from flask import Flask, Response, abort, jsonify, render_template, request
 
 from devices.buildkite_agent import BuildkiteAgent
-from devices.denkovi_relay import DenkoviRelay
+from devices.denkovi_relay import DenkoviRelay, DenkoviRelaySSH
 from devices.ethernet_device import EthernetDevice
 from devices.hub import StarTechHub
 from devices.intrepid import IntrepidDevice
@@ -230,7 +230,8 @@ def _poll_bench(ctx: BenchContext) -> dict:
         for e in devices.get("ethernet_devices", [])
     ]
     denkovi = [
-        DenkoviRelay(d["host"], d.get("port", 80), d.get("password", "admin")).check(d)
+        DenkoviRelaySSH(d["host"], host, user,
+                        d.get("port", 80), d.get("password", "admin")).check(d)
         for d in devices.get("denkovi_relays", [])
     ]
     intrepid = [
@@ -455,8 +456,12 @@ def toggle_denkovi_channel(name: str, di: int, ci: int):
     if di >= len(denkovi_cfg):
         return jsonify({"error": "denkovi index out of range"}), 404
     cfg = denkovi_cfg[di]
+    ssh = ctx.cfg["ssh"]
     try:
-        result = DenkoviRelay(cfg["host"], cfg.get("port", 80), cfg.get("password", "admin")).toggle(ci)
+        result = DenkoviRelaySSH(
+            cfg["host"], ssh["host"], ssh["user"],
+            cfg.get("port", 80), cfg.get("password", "admin"),
+        ).toggle(ci)
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
     threading.Thread(target=_repoll_after_toggle, args=(ctx,), daemon=True).start()
@@ -520,8 +525,8 @@ def power_cycle_dut(name: str):
         for ci, ch in enumerate(denkovi_cfg.get("channels", [])):
             label = ch.get("label", "")
             if "kl30" in label.lower() or "main_12v" in label.lower() or "pwr" in label.lower():
-                denkovi = DenkoviRelay(
-                    denkovi_cfg["host"],
+                denkovi = DenkoviRelaySSH(
+                    denkovi_cfg["host"], ssh["host"], ssh["user"],
                     denkovi_cfg.get("port", 80),
                     denkovi_cfg.get("password", "admin"),
                 )
