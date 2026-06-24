@@ -586,7 +586,8 @@ def tester_connect():
 def tester_run():
     from tests import (can_loopback, relay_toggle, denkovi_toggle,
                        hub_port_cycle, intrepid_interfaces, ethernet_ping,
-                       labjack_voltage, lin_check, flexray_check)
+                       labjack_voltage, lin_check, flexray_check,
+                       lin_communication, flexray_communication)
     data = request.get_json(silent=True) or {}
     host = data.get("host", "")
     test = data.get("test", "")
@@ -626,6 +627,22 @@ def tester_run():
             result = flexray_check.run(host, "dev",
                                        params.get("device_ip", "192.168.1.15"),
                                        params.get("interface", "enp0s20f0u1u1c2"))
+        elif test == "lin_communication":
+            result = lin_communication.run(host, "dev",
+                                           int(params.get("baudrate", 19200)),
+                                           int(params.get("timeout_s", 5)))
+        elif test == "flexray_connectivity":
+            result = flexray_communication.run_connectivity(
+                host, "dev",
+                params.get("device_ip", "192.168.1.15"),
+                int(params.get("device_port", 1500)),
+                int(params.get("channel", 1)))
+        elif test == "flexray_analyzer":
+            result = flexray_communication.run_analyzer(
+                host, "dev",
+                params.get("device_ip", "192.168.1.15"),
+                int(params.get("device_port", 1500)),
+                int(params.get("channel", 1)))
         else:
             return jsonify({"error": f"Unknown test: {test}"}), 400
     except Exception as exc:

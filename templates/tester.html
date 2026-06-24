@@ -408,17 +408,33 @@
           </div></div>`);
       }
 
-      // FlexRay (ethernet_devices from discovery don't show up yet — add manual card)
+      // LIN communication (PCAN-USB Pro FD)
       cards.push(`<div class="test-card">
         <div class="test-card-header">
-          <div><div class="test-card-name">FL3x FlexRay Analyzer</div>
-          <div class="test-card-sub">192.168.1.15 · Ethernet</div></div>
+          <div><div class="test-card-name">LIN Bus — PCAN-USB Pro FD</div>
+          <div class="test-card-sub">plin driver · /dev/plin/ · 19200 baud</div></div>
           <span class="badge badge-unknown">Not checked</span>
         </div>
         <div class="test-rows">
-          ${makeTestRow('flexray_check', 'Test FlexRay Analyzer',
-            {device_ip: '192.168.1.15', interface: 'enp0s20f0u1u1c2'},
-            'flexray-0')}
+          ${makeTestRow('lin_check', 'Check LIN Interfaces', {}, 'lin-ifaces')}
+          ${makeTestRow('lin_communication', 'Test LIN Communication',
+            {baudrate: 19200, timeout_s: 5}, 'lin-comm')}
+        </div></div>`);
+
+      // FlexRay
+      cards.push(`<div class="test-card">
+        <div class="test-card-header">
+          <div><div class="test-card-name">FL3x FlexRay Analyzer</div>
+          <div class="test-card-sub">192.168.1.15:1500 · Ethernet · libHwCom.so</div></div>
+          <span class="badge badge-unknown">Not checked</span>
+        </div>
+        <div class="test-rows">
+          ${makeTestRow('flexray_check', 'Check Reachability',
+            {device_ip: '192.168.1.15', interface: 'enp0s20f0u1u1c2'}, 'fl3x-ping')}
+          ${makeTestRow('flexray_connectivity', 'Test Device Connectivity',
+            {device_ip: '192.168.1.15', device_port: 1500, channel: 1}, 'fl3x-conn')}
+          ${makeTestRow('flexray_analyzer', 'Test Frame Capture (needs DUT)',
+            {device_ip: '192.168.1.15', device_port: 1500, channel: 1}, 'fl3x-frames')}
         </div></div>`);
 
       container.innerHTML = cards.join('') || '<div style="color:var(--muted);font-size:11px;">No testable devices discovered</div>';
