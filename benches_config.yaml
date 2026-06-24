@@ -506,7 +506,23 @@ benches:
     denkovi_relays:
     - name: dut_relays
       host: 192.168.1.100
-      channels: []
+      channels:
+    - label: fs86_dbg_vbos
+    - label: pf50_dbg_vbos
+    - label: usb_hub_1_pwr
+    - label: usb_hub_2_pwr
+    - label: lin_12v_pwr
+    - label: unused_ch6
+    - label: media_conv_1_pwr
+    - label: media_conv_2_pwr
+    - label: psi5_pwr
+    - label: boot_mod_1
+    - label: boot_mod_2
+    - label: unused_ch12
+    - label: unused_ch13
+    - label: unused_ch14
+    - label: unused_ch15
+      
     serial_devices:
     - name: smu_s32z_debug_serial
       identifier: FT98RH82
