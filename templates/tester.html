@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hardware Tester</title>
+  <style>
+    :root {
+      --bg:#0f1117; --card-bg:#1a1d27; --border:#2d3148;
+      --text:#e2e8f0; --muted:#8892a4;
+      --green:#22c55e; --red:#ef4444; --amber:#f59e0b; --blue:#3b82f6; --gray:#4b5563;
+    }
+    * { box-sizing:border-box; margin:0; padding:0; }
+    body { background:var(--bg); color:var(--text);
+           font-family:'JetBrains Mono',ui-monospace,monospace; font-size:13px; }
+
+    header {
+      display:flex; align-items:center; justify-content:space-between;
+      padding:14px 24px; border-bottom:1px solid var(--border);
+      background:var(--card-bg); position:sticky; top:0; z-index:10;
+    }
+    .header-left h1 { font-size:14px; font-weight:600; }
+    .header-left .meta { font-size:10px; color:var(--muted); margin-top:2px; }
+    .back { font-size:11px; color:var(--muted); text-decoration:none; margin-right:10px; }
+    .back:hover { color:var(--text); }
+
+    .connect-bar { display:flex; align-items:center; gap:8px; }
+    .ip-input {
+      background:#1f2937; border:1px solid var(--border); border-radius:6px;
+      color:var(--text); font-family:inherit; font-size:12px;
+      padding:7px 12px; width:200px;
+    }
+    .ip-input:focus { outline:none; border-color:var(--blue); }
+    .connect-btn {
+      background:#1e3a5f; border:1px solid var(--blue); border-radius:6px;
+      color:#60a5fa; cursor:pointer; font-family:inherit;
+      font-size:12px; font-weight:600; padding:7px 16px;
+    }
+    .connect-btn:hover { background:#1e4a7f; }
+    .connect-btn:disabled { opacity:0.5; cursor:not-allowed; }
+    .connected-label {
+      display:none; align-items:center; gap:6px;
+      font-size:11px; color:var(--green);
+    }
+    .pulse { width:8px; height:8px; border-radius:50%;
+             background:var(--green); animation:pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+    .disc-btn {
+      background:none; border:none; color:var(--muted);
+      cursor:pointer; font-size:11px; margin-left:8px; font-family:inherit;
+    }
+    .disc-btn:hover { color:var(--text); }
+
+    main { padding:20px 24px; display:flex; flex-direction:column; gap:24px; }
+
+    .section-title {
+      font-size:10px; font-weight:700; letter-spacing:0.1em;
+      text-transform:uppercase; color:var(--muted); margin-bottom:12px;
+    }
+
+    /* Device status grid */
+    .status-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:12px; }
+    .status-card {
+      background:var(--card-bg); border:1px solid var(--border);
+      border-radius:8px; padding:14px;
+    }
+    .status-card-title { font-size:12px; font-weight:600; margin-bottom:3px; }
+    .status-card-sub { font-size:10px; color:var(--muted); margin-bottom:10px; line-height:1.5; }
+    .status-ok { color:var(--green); font-size:11px; font-weight:700; }
+    .status-missing { color:var(--red); font-size:11px; font-weight:700; }
+    .status-unknown { color:var(--muted); font-size:11px; }
+
+    /* Test cards */
+    .run-all-row {
+      display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;
+    }
+    .run-all-btn {
+      background:#1e3a5f; border:1px solid var(--blue); border-radius:6px;
+      color:#60a5fa; cursor:pointer; font-family:inherit;
+      font-size:12px; font-weight:600; padding:7px 16px;
+    }
+    .run-all-btn:hover { background:#1e4a7f; }
+
+    .test-cards { display:flex; flex-direction:column; gap:14px; }
+    .test-card {
+      background:var(--card-bg); border:1px solid var(--border);
+      border-radius:8px; overflow:hidden;
+    }
+    .test-card-header {
+      display:flex; align-items:center; justify-content:space-between;
+      padding:14px 16px; border-bottom:1px solid var(--border);
+    }
+    .test-card-name { font-size:13px; font-weight:600; }
+    .test-card-sub { font-size:10px; color:var(--muted); margin-top:2px; }
+    .badge {
+      font-size:10px; font-weight:700; letter-spacing:0.06em;
+      padding:2px 8px; border-radius:4px; text-transform:uppercase; white-space:nowrap;
+    }
+    .badge-ok { background:#14532d; color:var(--green); }
+    .badge-missing { background:#450a0a; color:var(--red); }
+    .badge-unknown { background:#1f2937; color:var(--muted); }
+
+    .test-rows { padding:12px 16px; display:flex; flex-direction:column; gap:10px; }
+    .test-row { display:grid; grid-template-columns:180px 90px 1fr; align-items:start; gap:12px; }
+    .test-btn {
+      background:#1f2937; border:1px solid var(--border); border-radius:5px;
+      color:var(--text); cursor:pointer; font-family:inherit;
+      font-size:11px; font-weight:600; padding:6px 12px; text-align:left;
+      transition:background 0.15s; white-space:nowrap;
+    }
+    .test-btn:hover { background:#2d3148; }
+    .test-btn:disabled { opacity:0.4; cursor:not-allowed; }
+    .test-status { font-size:10px; font-weight:700; padding:4px 0; white-space:nowrap; }
+    .ts-pass { color:var(--green); }
+    .ts-fail { color:var(--red); }
+    .ts-error { color:var(--amber); }
+    .ts-running { color:var(--blue); }
+    .ts-notrun { color:var(--muted); }
+    .test-detail { font-size:10px; color:var(--muted); line-height:1.6; }
+    .test-detail .tin { color:#60a5fa; }
+    .test-detail .tok { color:var(--green); }
+    .test-detail .tfail { color:var(--red); }
+
+    /* Summary */
+    .summary-bar {
+      background:var(--card-bg); border:1px solid var(--border);
+      border-radius:8px; padding:12px 16px;
+      display:flex; align-items:center; justify-content:space-between;
+    }
+    .summary-counts { display:flex; gap:16px; font-size:11px; }
+    .export-btn {
+      background:#1f2937; border:1px solid var(--border); border-radius:5px;
+      color:var(--muted); cursor:pointer; font-family:inherit; font-size:11px; padding:6px 14px;
+    }
+    .export-btn:hover { color:var(--text); border-color:var(--text); }
+
+    /* Empty state */
+    .empty {
+      display:flex; flex-direction:column; align-items:center;
+      justify-content:center; min-height:300px; gap:12px; color:var(--muted);
+    }
+    .empty-icon { font-size:32px; opacity:0.4; }
+    .recent-label { font-size:10px; text-transform:uppercase; letter-spacing:0.1em; margin-top:16px; }
+    .chips { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+    .chip {
+      background:#1f2937; border:1px solid var(--border); border-radius:4px;
+      color:var(--muted); cursor:pointer; font-size:10px; padding:4px 10px;
+    }
+    .chip:hover { color:var(--text); border-color:var(--blue); }
+    .spinner { display:inline-block; animation:spin 1s linear infinite; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-left">
+      <h1><a class="back" href="/hub">← Hub</a>Hardware Tester</h1>
+      <div class="meta">Connect to any machine · SSH via esi-dashboard key</div>
+    </div>
+    <div class="connect-bar" id="connect-bar">
+      <input class="ip-input" type="text" id="target-ip" placeholder="10.80.10.57" value="">
+      <button class="connect-btn" id="connect-btn" onclick="connectToMachine()">Connect</button>
+    </div>
+    <div class="connected-label" id="connected-label">
+      <span class="pulse"></span>
+      <span id="connected-ip">—</span>
+      <button class="disc-btn" onclick="disconnect()">Disconnect</button>
+    </div>
+  </header>
+
+  <!-- EMPTY STATE -->
+  <main id="empty-state">
+    <div class="empty">
+      <div class="empty-icon">🔌</div>
+      <p>Enter a target machine IP above to begin</p>
+      <div class="recent-label">Recent machines</div>
+      <div class="chips">
+        <span class="chip" onclick="setIp('10.80.10.57')">10.80.10.57 — mnemosyne</span>
+        <span class="chip" onclick="setIp('10.80.10.98')">10.80.10.98 — jericho</span>
+        <span class="chip" onclick="setIp('10.80.11.28')">10.80.11.28 — elpaso</span>
+      </div>
+    </div>
+  </main>
+
+  <!-- CONNECTED STATE -->
+  <main id="connected-state" style="display:none;">
+
+    <!-- Device Status -->
+    <section>
+      <div class="section-title">Device Status — Auto Discovered</div>
+      <div class="status-grid" id="status-grid">
+        <div class="status-card" style="color:var(--muted);font-size:11px;">Scanning…</div>
+      </div>
+    </section>
+
+    <!-- Functional Tests -->
+    <section>
+      <div class="run-all-row">
+        <div class="section-title" style="margin-bottom:0;">Functional Tests</div>
+        <button class="run-all-btn" onclick="runAllTests()">Run All Tests</button>
+      </div>
+      <div class="test-cards" id="test-cards" style="margin-top:12px;"></div>
+    </section>
+
+    <!-- Summary Bar -->
+    <div class="summary-bar" id="summary-bar">
+      <div class="summary-counts" id="summary-counts">
+        <span>0 not run</span>
+      </div>
+      <button class="export-btn" onclick="exportReport()">Export Report</button>
+    </div>
+
+  </main>
+
+  <script>
+    let _host = '';
+    let _discovered = {};
+    let _results = {};
+
+    function setIp(ip) {
+      document.getElementById('target-ip').value = ip;
+    }
+
+    async function connectToMachine() {
+      const ip = document.getElementById('target-ip').value.trim();
+      if (!ip) return;
+      _host = ip;
+      const btn = document.getElementById('connect-btn');
+      btn.disabled = true;
+      btn.textContent = 'Connecting…';
+
+      try {
+        const res = await fetch('/api/tester/connect', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({host: ip}),
+        });
+        const data = await res.json();
+        if (data.error) { alert('Connection failed: ' + data.error); return; }
+        _discovered = data;
+        showConnected(ip, data);
+      } catch(e) {
+        alert('Failed: ' + e);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Connect';
+      }
+    }
+
+    function showConnected(ip, data) {
+      document.getElementById('connect-bar').style.display = 'none';
+      const lbl = document.getElementById('connected-label');
+      lbl.style.display = 'flex';
+      document.getElementById('connected-ip').textContent = ip;
+      document.getElementById('empty-state').style.display = 'none';
+      document.getElementById('connected-state').style.display = 'flex';
+      renderStatusGrid(data);
+      renderTestCards(data);
+      updateSummary();
+    }
+
+    function disconnect() {
+      _host = ''; _discovered = {}; _results = {};
+      document.getElementById('connect-bar').style.display = 'flex';
+      document.getElementById('connected-label').style.display = 'none';
+      document.getElementById('empty-state').style.display = 'flex';
+      document.getElementById('connected-state').style.display = 'none';
+      document.getElementById('target-ip').value = '';
+    }
+
+    function renderStatusGrid(data) {
+      const grid = document.getElementById('status-grid');
+      const cards = [];
+
+      if (data.usb_hubs && data.usb_hubs.length)
+        cards.push(`<div class="status-card">
+          <div class="status-card-title">StarTech Hubs</div>
+          <div class="status-card-sub">${data.usb_hubs.length} found</div>
+          <div class="status-ok">● OK</div></div>`);
+
+      if (data.sainsmart_relays && data.sainsmart_relays.length)
+        cards.push(`<div class="status-card">
+          <div class="status-card-title">Sainsmart Relays</div>
+          <div class="status-card-sub">${data.sainsmart_relays.map(r=>r.identifier).join(', ')}</div>
+          <div class="status-ok">● OK</div></div>`);
+
+      if (data.denkovi && data.denkovi.length)
+        data.denkovi.forEach(d => cards.push(`<div class="status-card">
+          <div class="status-card-title">Denkovi Relay</div>
+          <div class="status-card-sub">${d.host}</div>
+          <div class="status-ok">● OK</div></div>`));
+
+      if (data.intrepid && data.intrepid.length)
+        data.intrepid.forEach(i => cards.push(`<div class="status-card">
+          <div class="status-card-title">Intrepid NeoVI</div>
+          <div class="status-card-sub">Serial: ${i.serial_number}<br>${i.interfaces.slice(0,2).join(', ')}</div>
+          <div class="status-ok">● OK</div></div>`));
+
+      if (data.labjack && data.labjack.length)
+        cards.push(`<div class="status-card">
+          <div class="status-card-title">LabJack T7</div>
+          <div class="status-card-sub">${data.labjack.length} found</div>
+          <div class="status-ok">● OK</div></div>`);
+
+      if (data.serial_devices && data.serial_devices.length)
+        cards.push(`<div class="status-card">
+          <div class="status-card-title">Serial Devices</div>
+          <div class="status-card-sub">${data.serial_devices.length} found</div>
+          <div class="status-ok">● OK</div></div>`);
+
+      if (!cards.length)
+        cards.push(`<div class="status-card"><div class="status-unknown">No devices discovered</div></div>`);
+
+      grid.innerHTML = cards.join('');
+    }
+
+    function renderTestCards(data) {
+      const container = document.getElementById('test-cards');
+      const cards = [];
+
+      // Intrepid CAN tests
+      (data.intrepid || []).forEach(dev => {
+        const ifaces = dev.interfaces || [];
+        const rows = [];
+
+        // Intrepid interface check
+        rows.push(makeTestRow('intrepid_interfaces', `Test Interfaces`,
+          {serial_number: dev.serial_number, expected_count: 1},
+          `intrepid-${dev.serial_number}-ifaces`));
+
+        // CAN loopback if 2+ interfaces
+        if (ifaces.length >= 2) {
+          rows.push(makeTestRow('can_loopback', `Test CAN Loopback`,
+            {tx_iface: ifaces[0], rx_iface: ifaces[1]},
+            `can-${dev.serial_number}`));
+        }
+
+        cards.push(`<div class="test-card">
+          <div class="test-card-header">
+            <div><div class="test-card-name">Intrepid NeoVI Fire 3</div>
+            <div class="test-card-sub">Serial: ${dev.serial_number} · ${ifaces.slice(0,3).join(', ')}</div></div>
+            <span class="badge badge-ok">OK</span>
+          </div>
+          <div class="test-rows">${rows.join('')}</div></div>`);
+      });
+
+      // Denkovi tests
+      (data.denkovi || []).forEach(dev => {
+        const rows = [0,1,2].map(ch =>
+          makeTestRow('denkovi_toggle', `Test Toggle CH${ch}`,
+            {denkovi_host: dev.host, channel_idx: ch},
+            `denkovi-${dev.host}-ch${ch}`));
+        cards.push(`<div class="test-card">
+          <div class="test-card-header">
+            <div><div class="test-card-name">Denkovi smartDEN IP-16R</div>
+            <div class="test-card-sub">${dev.host} · 16 channels</div></div>
+            <span class="badge badge-ok">OK</span>
+          </div>
+          <div class="test-rows">${rows.join('')}</div></div>`);
+      });
+
+      // Sainsmart relay tests
+      (data.sainsmart_relays || []).forEach(relay => {
+        const rows = [0,1].map(ch =>
+          makeTestRow('relay_toggle', `Test Toggle CH${ch}`,
+            {identifier: relay.identifier, channel_idx: ch},
+            `relay-${relay.identifier}-ch${ch}`));
+        cards.push(`<div class="test-card">
+          <div class="test-card-header">
+            <div><div class="test-card-name">Sainsmart Relay</div>
+            <div class="test-card-sub">ID: ${relay.identifier}</div></div>
+            <span class="badge badge-ok">OK</span>
+          </div>
+          <div class="test-rows">${rows.join('')}</div></div>`);
+      });
+
+      // Hub tests
+      if ((data.usb_hubs || []).length) {
+        const rows = (data.usb_hubs || []).map((hub, i) => {
+          const path = (hub.description || '').match(/\/dev\/serial[^\s]*/);
+          if (!path) return '';
+          return makeTestRow('hub_port_cycle', `Test Port Cycle Hub ${i+1}`,
+            {serial_path: path[0], port_idx: 0},
+            `hub-${i}-p0`);
+        }).filter(Boolean);
+        if (rows.length) {
+          cards.push(`<div class="test-card">
+            <div class="test-card-header">
+              <div><div class="test-card-name">StarTech USB Hubs</div>
+              <div class="test-card-sub">${data.usb_hubs.length} hubs detected</div></div>
+              <span class="badge badge-ok">OK</span>
+            </div>
+            <div class="test-rows">${rows.join('')}</div></div>`);
+        }
+      }
+
+      container.innerHTML = cards.join('') || '<div style="color:var(--muted);font-size:11px;">No testable devices discovered</div>';
+    }
+
+    function makeTestRow(testName, label, params, key) {
+      _results[key] = {status:'not_run'};
+      return `<div class="test-row" id="row-${key}">
+        <button class="test-btn" onclick="runTest('${testName}',${JSON.stringify(params).replace(/"/g,'&quot;')},'${key}')">${label}</button>
+        <div class="test-status ts-notrun" id="status-${key}">○ Not run</div>
+        <div class="test-detail" id="detail-${key}"></div>
+      </div>`;
+    }
+
+    async function runTest(testName, params, key) {
+      const statusEl = document.getElementById('status-' + key);
+      const detailEl = document.getElementById('detail-' + key);
+      statusEl.className = 'test-status ts-running';
+      statusEl.textContent = '⟳ Running';
+      detailEl.textContent = '';
+
+      try {
+        const res = await fetch('/api/tester/run', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({host: _host, test: testName, params}),
+        });
+        const data = await res.json();
+        _results[key] = data;
+        renderTestResult(key, data);
+      } catch(e) {
+        _results[key] = {status: 'error'};
+        statusEl.className = 'test-status ts-error';
+        statusEl.textContent = '⚠ Error';
+        detailEl.textContent = String(e);
+      }
+      updateSummary();
+    }
+
+    function renderTestResult(key, data) {
+      const statusEl = document.getElementById('status-' + key);
+      const detailEl = document.getElementById('detail-' + key);
+      const s = data.status;
+      const cls = {pass:'ts-pass',fail:'ts-fail',error:'ts-error'}[s] || 'ts-notrun';
+      const icon = {pass:'● PASS',fail:'✗ FAIL',error:'⚠ Error'}[s] || '○';
+      statusEl.className = 'test-status ' + cls;
+      statusEl.textContent = icon + (data.duration_ms ? ` · ${data.duration_ms}ms` : '');
+
+      let html = '';
+      if (data.input) html += `<span class="tin">→ ${data.input}</span><br>`;
+      if (data.output) html += `<span class="${s==='pass'?'tok':'tfail'}">← ${data.output}</span>`;
+      if (data.error) html += `<br><span class="tfail">${data.error}</span>`;
+      detailEl.innerHTML = html;
+    }
+
+    async function runAllTests() {
+      const rows = document.querySelectorAll('[id^="row-"]');
+      for (const row of rows) {
+        const btn = row.querySelector('.test-btn');
+        if (btn) btn.click();
+        await new Promise(r => setTimeout(r, 300));
+      }
+    }
+
+    function updateSummary() {
+      const counts = {pass:0, fail:0, error:0, not_run:0};
+      Object.values(_results).forEach(r => {
+        const s = r.status || 'not_run';
+        counts[s] = (counts[s]||0) + 1;
+      });
+      const el = document.getElementById('summary-counts');
+      el.innerHTML = [
+        counts.pass   ? `<span style="color:var(--green)">● ${counts.pass} Passed</span>` : '',
+        counts.fail   ? `<span style="color:var(--red)">● ${counts.fail} Failed</span>` : '',
+        counts.error  ? `<span style="color:var(--amber)">⚠ ${counts.error} Errors</span>` : '',
+        counts.not_run? `<span style="color:var(--muted)">○ ${counts.not_run} Not run</span>` : '',
+      ].filter(Boolean).join('') || '<span style="color:var(--muted)">No tests run</span>';
+    }
+
+    function exportReport() {
+      const lines = [`# Hardware Test Report`, `Target: ${_host}`, `Date: ${new Date().toLocaleString()}`, ''];
+      Object.entries(_results).forEach(([key, r]) => {
+        lines.push(`## ${r.test_name || key}`);
+        lines.push(`Status: ${(r.status||'').toUpperCase()}`);
+        if (r.input)  lines.push(`Input:  ${r.input}`);
+        if (r.output) lines.push(`Output: ${r.output}`);
+        if (r.error)  lines.push(`Error:  ${r.error}`);
+        lines.push('');
+      });
+      const blob = new Blob([lines.join('\n')], {type:'text/markdown'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `hw-test-${_host}-${new Date().toISOString().slice(0,10)}.md`;
+      a.click();
+    }
+  </script>
+</body>
+</html>

@@ -554,6 +554,78 @@ def agent_run_test(name: str):
 
 
 # ---------------------------------------------------------------------------
+# Hub + Tester routes
+# ---------------------------------------------------------------------------
+
+@app.route("/hub")
+def hub_view():
+    fleet = _fleet_summary()
+    busy = sum(1 for b in fleet["benches"] if b.get("agent_status") == "busy")
+    idle = sum(1 for b in fleet["benches"] if b.get("agent_status") == "idle")
+    total = len(fleet["benches"])
+    return render_template("hub.html", total=total, busy=busy, idle=idle)
+
+
+@app.route("/tester")
+def tester_view():
+    return render_template("tester.html")
+
+
+@app.route("/api/tester/connect", methods=["POST"])
+def tester_connect():
+    from tests.discovery import discover
+    data = request.get_json(silent=True) or {}
+    host = data.get("host", "").strip()
+    if not host:
+        return jsonify({"error": "host required"}), 400
+    result = discover(host)
+    return jsonify(result)
+
+
+@app.route("/api/tester/run", methods=["POST"])
+def tester_run():
+    from tests import (can_loopback, relay_toggle, denkovi_toggle,
+                       hub_port_cycle, intrepid_interfaces, ethernet_ping)
+    data = request.get_json(silent=True) or {}
+    host = data.get("host", "")
+    test = data.get("test", "")
+    params = data.get("params", {})
+
+    try:
+        if test == "can_loopback":
+            result = can_loopback.run(host, "dev",
+                                      params["tx_iface"], params["rx_iface"])
+        elif test == "relay_toggle":
+            result = relay_toggle.run(host, "dev",
+                                      params["identifier"],
+                                      int(params.get("channel_idx", 0)),
+                                      sudo_user="bk")
+        elif test == "denkovi_toggle":
+            result = denkovi_toggle.run(params["denkovi_host"],
+                                        int(params.get("port", 80)),
+                                        params.get("password", "admin"),
+                                        int(params.get("channel_idx", 0)))
+        elif test == "hub_port_cycle":
+            result = hub_port_cycle.run(host, "dev",
+                                        params["serial_path"],
+                                        int(params.get("port_idx", 0)))
+        elif test == "intrepid_interfaces":
+            result = intrepid_interfaces.run(host, "dev",
+                                             params["serial_number"],
+                                             int(params.get("expected_count", 1)))
+        elif test == "ethernet_ping":
+            result = ethernet_ping.run(host, "dev",
+                                       params["target_ip"],
+                                       params.get("device_name", ""))
+        else:
+            return jsonify({"error": f"Unknown test: {test}"}), 400
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+    return jsonify(result.to_dict())
+
+
+# ---------------------------------------------------------------------------
 # Startup
 # ---------------------------------------------------------------------------
 
