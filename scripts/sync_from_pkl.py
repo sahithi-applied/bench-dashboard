@@ -244,11 +244,19 @@ def _parse_denkovi(text: str, var_name: str) -> Optional[DenkoviDevice]:
     port = int(_first(r'port\s*=\s*(\d+)', block) or "80")
     password = _first(r'password\s*=\s*"([^"]+)"', block) or "admin"
     channels = []
-    for m in re.finditer(r'\[(\d+)\]\s*=\s*new\s*\{([^}]*)\}', block, re.DOTALL):
-        idx, ch_body = int(m.group(1)), m.group(2)
-        label_m = re.search(r'name\s*=\s*"([^"]+)"', ch_body)
-        label = label_m.group(1) if label_m else f"ch{idx}"
-        channels.append({"label": label, "idx": idx})
+    for m in re.finditer(r'\["([^"]+)"\]\s*=\s*new\s*\{([^}]*)\}', block, re.DOTALL):
+        ch_name, ch_body = m.group(1), m.group(2)
+        idx_m = re.search(r'channel_idx\s*=\s*(\d+)', ch_body)
+        if not idx_m:
+            continue
+        idx = int(idx_m.group(1))
+        if ch_name.startswith('_'):
+            label = f"unused_ch{idx}"
+        else:
+            label = ch_name
+        inverted = bool(re.search(r'invert\s*=\s*true', ch_body))
+        default = bool(re.search(r'default_state\s*=\s*true', ch_body))
+        channels.append({"label": label, "idx": idx, "inverted": inverted, "default": default})
     channels.sort(key=lambda c: c["idx"])
     return DenkoviDevice(var_name=var_name, name=name, host=host, port=port,
                          password=password, channels=channels)
@@ -453,7 +461,10 @@ def _bench_to_config(bench: Bench) -> dict:
             entry["port"] = d.port
         if d.password != "admin":
             entry["password"] = d.password
-        entry["channels"] = [{"label": ch["label"]} for ch in d.channels]
+        entry["channels"] = [
+            {"label": ch["label"], "inverted": ch.get("inverted", False), "default": ch.get("default", False)}
+            for ch in d.channels
+        ]
         denkovi_relays.append(entry)
 
     intrepid_devices = []
