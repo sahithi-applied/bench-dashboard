@@ -585,7 +585,8 @@ def tester_connect():
 @app.route("/api/tester/run", methods=["POST"])
 def tester_run():
     from tests import (can_loopback, relay_toggle, denkovi_toggle,
-                       hub_port_cycle, intrepid_interfaces, ethernet_ping)
+                       hub_port_cycle, intrepid_interfaces, ethernet_ping,
+                       labjack_voltage, lin_check, flexray_check)
     data = request.get_json(silent=True) or {}
     host = data.get("host", "")
     test = data.get("test", "")
@@ -617,6 +618,14 @@ def tester_run():
             result = ethernet_ping.run(host, "dev",
                                        params["target_ip"],
                                        params.get("device_name", ""))
+        elif test == "labjack_voltage":
+            result = labjack_voltage.run(host, "dev")
+        elif test == "lin_check":
+            result = lin_check.run(host, "dev", params["serial_number"])
+        elif test == "flexray_check":
+            result = flexray_check.run(host, "dev",
+                                       params.get("device_ip", "192.168.1.15"),
+                                       params.get("interface", "enp0s20f0u1u1c2"))
         else:
             return jsonify({"error": f"Unknown test: {test}"}), 400
     except Exception as exc:
