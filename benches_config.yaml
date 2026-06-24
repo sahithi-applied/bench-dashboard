@@ -481,7 +481,6 @@ benches:
   ssh:
     host: 10.80.10.57
     user: dev
-    sudo_user: bk
   buildkite:
     service: buildkite-agent-bk.service
     agent_name: mnemosyne-fw-hil-6
@@ -503,58 +502,27 @@ benches:
       - Unused
       - Unused
       - 'USB31000S USB-to-Ethernet #2'
-    relay_boards:
+    relay_boards: []
+    denkovi_relays:
     - name: dut_relays
-      identifier: ''
+      host: 192.168.1.100
       channels:
-      - label: main_12v
-        inverted: false
-        default: true
-      - label: fs86_dbg_vbos
-        inverted: false
-        default: true
-      - label: pf50_dbg_vbos
-        inverted: false
-        default: true
-      - label: usb_hub_1_pwr
-        inverted: true
-        default: true
-      - label: usb_hub_2_pwr
-        inverted: true
-        default: true
-      - label: lin_12v_pwr
-        inverted: false
-        default: true
-      - label: unused_ch6
-        inverted: true
-        default: true
-      - label: media_conv_1_pwr
-        inverted: true
-        default: true
-      - label: media_conv_2_pwr
-        inverted: true
-        default: true
-      - label: psi5_pwr
-        inverted: true
-        default: true
-      - label: boot_mod_1
-        inverted: true
-        default: true
-      - label: boot_mod_2
-        inverted: true
-        default: true
-      - label: unused_ch12
-        inverted: false
-        default: false
-      - label: unused_ch13
-        inverted: false
-        default: false
-      - label: unused_ch14
-        inverted: false
-        default: false
-      - label: unused_ch15
-        inverted: false
-        default: false
+    - label: fs86_dbg_vbos
+    - label: pf50_dbg_vbos
+    - label: usb_hub_1_pwr
+    - label: usb_hub_2_pwr
+    - label: lin_12v_pwr
+    - label: unused_ch6
+    - label: media_conv_1_pwr
+    - label: media_conv_2_pwr
+    - label: psi5_pwr
+    - label: boot_mod_1
+    - label: boot_mod_2
+    - label: unused_ch12
+    - label: unused_ch13
+    - label: unused_ch14
+    - label: unused_ch15
+      
     serial_devices:
     - name: smu_s32z_debug_serial
       identifier: FT98RH82
@@ -572,3 +540,17 @@ benches:
       interface: enx00249b8cb565
     - name: usb_eth_2
       interface: enx00249b8cb550
+    intrepid_devices:
+    - name: s32z_can1_conn_j10
+      serial_number: FF0552
+      channel_names:
+      - s32z_can1_conn_j10
+      - s32z_can2_conn_j10
+      - s32z_can3_conn_j15
+      - s32z_can4_conn_j15
+      - s32z_can5_conn_j9
+      - s32z_can6_conn_j9
+      - s32z_can7_conn_j15
+      - s32z_can8_conn_j15
+      - s32z_can9_conn_j10
+      - s32z_can10_conn_j10
