@@ -507,22 +507,54 @@ benches:
     - name: dut_relays
       host: 192.168.1.100
       channels:
-    - label: fs86_dbg_vbos
-    - label: pf50_dbg_vbos
-    - label: usb_hub_1_pwr
-    - label: usb_hub_2_pwr
-    - label: lin_12v_pwr
-    - label: unused_ch6
-    - label: media_conv_1_pwr
-    - label: media_conv_2_pwr
-    - label: psi5_pwr
-    - label: boot_mod_1
-    - label: boot_mod_2
-    - label: unused_ch12
-    - label: unused_ch13
-    - label: unused_ch14
-    - label: unused_ch15
-      
+      - label: main_12v
+        inverted: false
+        default: true
+      - label: fs86_dbg_vbos
+        inverted: false
+        default: true
+      - label: pf50_dbg_vbos
+        inverted: false
+        default: true
+      - label: usb_hub_1_pwr
+        inverted: true
+        default: true
+      - label: usb_hub_2_pwr
+        inverted: true
+        default: true
+      - label: lin_12v_pwr
+        inverted: false
+        default: true
+      - label: unused_ch6
+        inverted: true
+        default: true
+      - label: media_conv_1_pwr
+        inverted: true
+        default: true
+      - label: media_conv_2_pwr
+        inverted: true
+        default: true
+      - label: psi5_pwr
+        inverted: true
+        default: true
+      - label: boot_mod_1
+        inverted: true
+        default: true
+      - label: boot_mod_2
+        inverted: true
+        default: true
+      - label: unused_ch12
+        inverted: false
+        default: false
+      - label: unused_ch13
+        inverted: false
+        default: false
+      - label: unused_ch14
+        inverted: false
+        default: false
+      - label: unused_ch15
+        inverted: false
+        default: false
     serial_devices:
     - name: smu_s32z_debug_serial
       identifier: FT98RH82
