@@ -242,82 +242,19 @@ benches:
     - name: fl3x_ethernet
       interface: enp0s20f0u1u1c2
       device_ip: 192.168.1.15
-- name: coconut
-  hostname: coconut-fw-hil-18
-  ip: 10.80.10.25
+- name: jericho
+  hostname: jericho-fw-hil-31
+  ip: 10.80.10.98
   ssh:
-    host: 10.80.10.25
+    host: 10.80.10.98
     user: dev
-    sudo_user: bk
   buildkite:
     service: buildkite-agent-bk.service
-    agent_name: coconut-fw-hil-18
+    agent_name: jericho-fw-hil-31
     queue: fw_hil
   devices:
-    usb_hubs:
-    - name: usb_hub_pcan
-      serial_path: /dev/serial/by-id/usb-FTDI_FT232R_USB_UART_B0036AWH-if00-port0
-      ports:
-      - USB port that PCAN1 is connected to
-      - USB port that PCAN2 is connected to
-      - USB port that PCAN0 is connected to
-      - USB power control for the Radmoon2 ethernet PHY adapter
-    - name: usb_hub_misc
-      serial_path: /dev/serial/by-id/usb-FTDI_FT232R_USB_UART_B00337ZD-if00-port0
-      ports:
-      - USB port that DUT relay device is connected to
-      - USB port that the S32 Debugger (ZAP) is connected to
-      - Chained Anker 4-port hub with S32k PeMicro debugger and RTU, SMU, and S32k
-        UART
-      - port_unused_3
-    relay_boards:
-    - name: dut_relays
-      identifier: CVVDM0ZB
-      powered_by:
-        hub_index: 1
-        port: 0
-      channels:
-      - label: main_12v
-        inverted: true
-        default: false
-      - label: wdg_dbg_fs26
-        inverted: true
-        default: true
-      - label: boot_mod_1
-        inverted: false
-        default: false
-      - label: boot_mod_2
-        inverted: false
-        default: false
-    - name: wdg_relays
-      identifier: AH05I4ZM
-      powered_by:
-        hub_index: 1
-        port: 0
-      channels:
-      - label: wdg_dbg_fs86
-        inverted: true
-        default: true
-      - label: wdg_dbg_pf50
-        inverted: true
-        default: true
-      - label: unused_ch2
-        inverted: false
-        default: false
-      - label: unused_ch3
-        inverted: false
-        default: false
-    serial_devices:
-    - name: mcu_s32k_debug_serial
-      identifier: AU0K3F5A
-    - name: rtu_s32z_debug_serial
-      identifier: AU0K3J5F
-    - name: smu_s32z_debug_serial
-      identifier: FT98RVUO
-    ethernet_devices:
-    - name: fl3x_ethernet
-      interface: enp0s20f0u4u1
-      device_ip: 192.168.1.15
+    usb_hubs: []
+    relay_boards: []
 - name: mater
   hostname: mater-fw-hil-19
   ip: 10.80.10.18
@@ -507,22 +444,54 @@ benches:
     - name: dut_relays
       host: 192.168.1.100
       channels:
-    - label: fs86_dbg_vbos
-    - label: pf50_dbg_vbos
-    - label: usb_hub_1_pwr
-    - label: usb_hub_2_pwr
-    - label: lin_12v_pwr
-    - label: unused_ch6
-    - label: media_conv_1_pwr
-    - label: media_conv_2_pwr
-    - label: psi5_pwr
-    - label: boot_mod_1
-    - label: boot_mod_2
-    - label: unused_ch12
-    - label: unused_ch13
-    - label: unused_ch14
-    - label: unused_ch15
-      
+      - label: main_12v
+        inverted: false
+        default: true
+      - label: fs86_dbg_vbos
+        inverted: false
+        default: true
+      - label: pf50_dbg_vbos
+        inverted: false
+        default: true
+      - label: usb_hub_1_pwr
+        inverted: true
+        default: true
+      - label: usb_hub_2_pwr
+        inverted: true
+        default: true
+      - label: lin_12v_pwr
+        inverted: false
+        default: true
+      - label: unused_ch6
+        inverted: true
+        default: true
+      - label: media_conv_1_pwr
+        inverted: true
+        default: true
+      - label: media_conv_2_pwr
+        inverted: true
+        default: true
+      - label: psi5_pwr
+        inverted: true
+        default: true
+      - label: boot_mod_1
+        inverted: true
+        default: true
+      - label: boot_mod_2
+        inverted: true
+        default: true
+      - label: unused_ch12
+        inverted: false
+        default: false
+      - label: unused_ch13
+        inverted: false
+        default: false
+      - label: unused_ch14
+        inverted: false
+        default: false
+      - label: unused_ch15
+        inverted: false
+        default: false
     serial_devices:
     - name: smu_s32z_debug_serial
       identifier: FT98RH82
