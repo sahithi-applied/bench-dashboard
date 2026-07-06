@@ -17,26 +17,35 @@ _DISCOVERY_SCRIPT = textwrap.dedent("""\
     }
 
     # ── lsusb scan ──────────────────────────────────────────────────────────
-    KNOWN_VIDS = {
-        "0403:6001": "FTDI FT232R (Hub/Relay controller)",
-        "0403:6011": "FTDI FT4232H",
-        "0cd5:0104": "LabJack T7",
-        "1a86:7523": "CH340 (Sainsmart relay)",
-        "04b4:00f3": "Cypress FX2 (FL3x)",
-        "0525:a4a2": "Digi AnywhereUSB",
-    }
-    STARTECH_VIDS = {"1d6b:0003", "05e3:0626", "05e3:0610", "0bda:5411", "0bda:0411"}
+    # NOTE: 1d6b:* are Linux Foundation root hubs — present on every machine,
+    # never real StarTech hardware. Genesys (05e3) and Realtek (0bda) hub
+    # chips are what StarTech units actually enumerate as.
+    HUB_CHIP_VIDS = {"05e3:0626", "05e3:0610", "0bda:5411", "0bda:0411"}
 
+    hub_chips = []
     r = subprocess.run(["lsusb"], capture_output=True, text=True)
     for line in r.stdout.splitlines():
         m = re.search(r"ID ([0-9a-f]{4}:[0-9a-f]{4})", line)
         if not m:
             continue
         vid_pid = m.group(1)
-        if "StarTech" in line or vid_pid in STARTECH_VIDS:
-            result["usb_hubs"].append({"description": line.strip()})
+        if "StarTech" in line or vid_pid in HUB_CHIP_VIDS:
+            hub_chips.append(line.strip())
         elif vid_pid == "0cd5:0104":
             result["labjack"].append({"description": line.strip()})
+
+    # StarTech hub power control goes through an FTDI FT232R UART — the
+    # serial_path used in benches_config.yaml. Pair each FT232R control port
+    # with the hub-chip evidence from lsusb.
+    serial_dir = Path("/dev/serial/by-id")
+    if serial_dir.exists():
+        for p in sorted(serial_dir.iterdir()):
+            if "FT232R" in p.name and p.name.endswith("-port0"):
+                result["usb_hubs"].append({
+                    "serial_path": str(p),
+                    "name": p.name,
+                    "description": hub_chips[0] if hub_chips else "",
+                })
 
     # ── Sainsmart relay scan via /sys/bus/usb ────────────────────────────────
     usb_path = Path("/sys/bus/usb/devices")
@@ -104,15 +113,15 @@ def discover(ssh_host: str, ssh_user: str = "dev") -> dict:
         return {"error": str(exc), "usb_hubs": [], "sainsmart_relays": [],
                 "intrepid": [], "serial_devices": [], "labjack": [], "denkovi": []}
 
-    # Probe Denkovi IPs directly from esi-dashboard (HTTP)
-    import socket
+    # Probe Denkovi IPs from the target machine — 192.168.1.x is only
+    # routable from the bench, not from esi-dashboard.
     denkovi = []
-    for ip in DENKOVI_PROBE_IPS:
-        try:
-            with socket.create_connection((ip, 80), timeout=2):
-                denkovi.append({"host": ip, "reachable": True})
-        except OSError:
-            pass
+    try:
+        script = f"denkovi_ips = {DENKOVI_PROBE_IPS!r}\n" + _DENKOVI_CHECK_SCRIPT
+        probes = ssh_exec(ssh_host, ssh_user, script, timeout=15)
+        denkovi = [p for p in probes if p.get("reachable")]
+    except Exception:
+        pass
 
     devices["denkovi"] = denkovi
     devices.setdefault("error", None)

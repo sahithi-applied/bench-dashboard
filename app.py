@@ -581,9 +581,10 @@ def tester_connect():
     from tests.discovery import discover
     data = request.get_json(silent=True) or {}
     host = data.get("host", "").strip()
+    user = (data.get("user") or "dev").strip()
     if not host:
         return jsonify({"error": "host required"}), 400
-    result = discover(host)
+    result = discover(host, user)
     return jsonify(result)
 
 
@@ -595,56 +596,58 @@ def tester_run():
                        lin_communication, flexray_communication)
     data = request.get_json(silent=True) or {}
     host = data.get("host", "")
+    user = (data.get("user") or "dev").strip()
     test = data.get("test", "")
     params = data.get("params", {})
 
     try:
         if test == "can_loopback":
-            result = can_loopback.run(host, "dev",
+            result = can_loopback.run(host, user,
                                       params["tx_iface"], params["rx_iface"])
         elif test == "relay_toggle":
-            result = relay_toggle.run(host, "dev",
+            result = relay_toggle.run(host, user,
                                       params["identifier"],
                                       int(params.get("channel_idx", 0)),
                                       sudo_user="bk")
         elif test == "denkovi_toggle":
-            result = denkovi_toggle.run(params["denkovi_host"],
+            result = denkovi_toggle.run(host, user,
+                                        params["denkovi_host"],
                                         int(params.get("port", 80)),
                                         params.get("password", "admin"),
                                         int(params.get("channel_idx", 0)))
         elif test == "hub_port_cycle":
-            result = hub_port_cycle.run(host, "dev",
+            result = hub_port_cycle.run(host, user,
                                         params["serial_path"],
                                         int(params.get("port_idx", 0)))
         elif test == "intrepid_interfaces":
-            result = intrepid_interfaces.run(host, "dev",
+            result = intrepid_interfaces.run(host, user,
                                              params["serial_number"],
                                              int(params.get("expected_count", 1)))
         elif test == "ethernet_ping":
-            result = ethernet_ping.run(host, "dev",
+            result = ethernet_ping.run(host, user,
                                        params["target_ip"],
                                        params.get("device_name", ""))
         elif test == "labjack_voltage":
-            result = labjack_voltage.run(host, "dev")
+            result = labjack_voltage.run(host, user)
         elif test == "lin_check":
-            result = lin_check.run(host, "dev", params["serial_number"])
+            result = lin_check.run(host, user, params.get("serial_number", ""))
         elif test == "flexray_check":
-            result = flexray_check.run(host, "dev",
+            result = flexray_check.run(host, user,
                                        params.get("device_ip", "192.168.1.15"),
                                        params.get("interface", "enp0s20f0u1u1c2"))
         elif test == "lin_communication":
-            result = lin_communication.run(host, "dev",
+            result = lin_communication.run(host, user,
                                            int(params.get("baudrate", 19200)),
                                            int(params.get("timeout_s", 5)))
         elif test == "flexray_connectivity":
             result = flexray_communication.run_connectivity(
-                host, "dev",
+                host, user,
                 params.get("device_ip", "192.168.1.15"),
                 int(params.get("device_port", 1500)),
                 int(params.get("channel", 1)))
         elif test == "flexray_analyzer":
             result = flexray_communication.run_analyzer(
-                host, "dev",
+                host, user,
                 params.get("device_ip", "192.168.1.15"),
                 int(params.get("device_port", 1500)),
                 int(params.get("channel", 1)))

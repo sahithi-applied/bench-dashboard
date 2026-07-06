@@ -57,11 +57,12 @@ _LIN_CHECK_SCRIPT = textwrap.dedent("""\
 """)
 
 
-def run(ssh_host: str, ssh_user: str, serial_number: str) -> TestResult:
+def run(ssh_host: str, ssh_user: str, serial_number: str = "") -> TestResult:
+    """Empty serial_number matches LIN interfaces from any device."""
     t0 = time.time()
     result = TestResult(
         test_name="LIN Interface Check",
-        device_name=f"Intrepid {serial_number} — LIN",
+        device_name=f"Intrepid {serial_number} — LIN" if serial_number else "LIN interfaces (any)",
         status="running",
     )
     try:

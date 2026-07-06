@@ -159,6 +159,7 @@
     </div>
     <div class="connect-bar" id="connect-bar">
       <input class="ip-input" type="text" id="target-ip" placeholder="10.80.10.57" value="">
+      <input class="ip-input" style="width:100px" type="text" id="target-user" placeholder="ssh user" value="dev">
       <button class="connect-btn" id="connect-btn" onclick="connectToMachine()">Connect</button>
     </div>
     <div class="connected-label" id="connected-label">
@@ -214,8 +215,10 @@
 
   <script>
     let _host = '';
+    let _user = 'dev';
     let _discovered = {};
     let _results = {};
+    let _tests = {};
 
     function setIp(ip) {
       document.getElementById('target-ip').value = ip;
@@ -225,6 +228,7 @@
       const ip = document.getElementById('target-ip').value.trim();
       if (!ip) return;
       _host = ip;
+      _user = document.getElementById('target-user').value.trim() || 'dev';
       const btn = document.getElementById('connect-btn');
       btn.disabled = true;
       btn.textContent = 'Connecting…';
@@ -233,7 +237,7 @@
         const res = await fetch('/api/tester/connect', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({host: ip}),
+          body: JSON.stringify({host: ip, user: _user}),
         });
         const data = await res.json();
         if (data.error) { alert('Connection failed: ' + data.error); return; }
@@ -251,7 +255,7 @@
       document.getElementById('connect-bar').style.display = 'none';
       const lbl = document.getElementById('connected-label');
       lbl.style.display = 'flex';
-      document.getElementById('connected-ip').textContent = ip;
+      document.getElementById('connected-ip').textContent = _user + '@' + ip;
       document.getElementById('empty-state').style.display = 'none';
       document.getElementById('connected-state').style.display = 'flex';
       renderStatusGrid(data);
@@ -260,7 +264,7 @@
     }
 
     function disconnect() {
-      _host = ''; _discovered = {}; _results = {};
+      _host = ''; _discovered = {}; _results = {}; _tests = {};
       document.getElementById('connect-bar').style.display = 'flex';
       document.getElementById('connected-label').style.display = 'none';
       document.getElementById('empty-state').style.display = 'flex';
@@ -275,7 +279,7 @@
       if (data.usb_hubs && data.usb_hubs.length)
         cards.push(`<div class="status-card">
           <div class="status-card-title">StarTech Hubs</div>
-          <div class="status-card-sub">${data.usb_hubs.length} found</div>
+          <div class="status-card-sub">${data.usb_hubs.length} control port(s):<br>${data.usb_hubs.map(h=>h.name).join('<br>')}</div>
           <div class="status-ok">● OK</div></div>`);
 
       if (data.sainsmart_relays && data.sainsmart_relays.length)
@@ -317,6 +321,7 @@
     function renderTestCards(data) {
       const container = document.getElementById('test-cards');
       const cards = [];
+      _tests = {}; _results = {};
 
       // Intrepid CAN + LIN tests
       (data.intrepid || []).forEach(dev => {
@@ -375,24 +380,19 @@
           <div class="test-rows">${rows.join('')}</div></div>`);
       });
 
-      // Hub tests
+      // Hub tests — discovery returns the FTDI control serial path per hub
       if ((data.usb_hubs || []).length) {
-        const rows = (data.usb_hubs || []).map((hub, i) => {
-          const path = (hub.description || '').match(/\/dev\/serial[^\s]*/);
-          if (!path) return '';
-          return makeTestRow('hub_port_cycle', `Test Port Cycle Hub ${i+1}`,
-            {serial_path: path[0], port_idx: 0},
-            `hub-${i}-p0`);
-        }).filter(Boolean);
-        if (rows.length) {
-          cards.push(`<div class="test-card">
-            <div class="test-card-header">
-              <div><div class="test-card-name">StarTech USB Hubs</div>
-              <div class="test-card-sub">${data.usb_hubs.length} hubs detected</div></div>
-              <span class="badge badge-ok">OK</span>
-            </div>
-            <div class="test-rows">${rows.join('')}</div></div>`);
-        }
+        const rows = (data.usb_hubs || []).map((hub, i) =>
+          makeTestRow('hub_port_cycle', `Test Port Cycle Hub ${i+1}`,
+            {serial_path: hub.serial_path, port_idx: 0},
+            `hub-${i}-p0`));
+        cards.push(`<div class="test-card">
+          <div class="test-card-header">
+            <div><div class="test-card-name">StarTech USB Hubs</div>
+            <div class="test-card-sub">${data.usb_hubs.map(h=>h.name).join(' · ')}</div></div>
+            <span class="badge badge-ok">OK</span>
+          </div>
+          <div class="test-rows">${rows.join('')}</div></div>`);
       }
 
       // LabJack
@@ -442,14 +442,16 @@
 
     function makeTestRow(testName, label, params, key) {
       _results[key] = {status:'not_run'};
+      _tests[key] = {testName, params};
       return `<div class="test-row" id="row-${key}">
-        <button class="test-btn" onclick="runTest('${testName}',${JSON.stringify(params).replace(/"/g,'&quot;')},'${key}')">${label}</button>
+        <button class="test-btn" onclick="runTest('${key}')">${label}</button>
         <div class="test-status ts-notrun" id="status-${key}">○ Not run</div>
         <div class="test-detail" id="detail-${key}"></div>
       </div>`;
     }
 
-    async function runTest(testName, params, key) {
+    async function runTest(key) {
+      const {testName, params} = _tests[key];
       const statusEl = document.getElementById('status-' + key);
       const detailEl = document.getElementById('detail-' + key);
       statusEl.className = 'test-status ts-running';
@@ -460,7 +462,7 @@
         const res = await fetch('/api/tester/run', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({host: _host, test: testName, params}),
+          body: JSON.stringify({host: _host, user: _user, test: testName, params}),
         });
         const data = await res.json();
         _results[key] = data;
@@ -491,11 +493,11 @@
     }
 
     async function runAllTests() {
-      const rows = document.querySelectorAll('[id^="row-"]');
-      for (const row of rows) {
-        const btn = row.querySelector('.test-btn');
-        if (btn) btn.click();
-        await new Promise(r => setTimeout(r, 300));
+      if (!confirm('Run All actuates real hardware: relay channels toggle OFF→ON and ' +
+                   'hub ports power-cycle. Do not run against a bench that is mid-test ' +
+                   'or has a powered DUT you care about. Continue?')) return;
+      for (const key of Object.keys(_tests)) {
+        await runTest(key);   // sequential — avoids SSH contention and interleaved hardware actions
       }
     }
 
