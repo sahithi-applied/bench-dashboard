@@ -66,7 +66,7 @@ _DISCOVERY_SCRIPT = textwrap.dedent("""\
 
     # ── Intrepid SocketCAN interfaces ────────────────────────────────────────
     r2 = subprocess.run(["ip", "link", "show"], capture_output=True, text=True)
-    intrepid_re = re.compile(r"\\d+:\\s+(\\w+_([A-F0-9]{6})):")
+    intrepid_re = re.compile(r"\\d+:\\s+(\\w+_([0-9A-Za-z]{6})):")
     seen_serials = set()
     for m in intrepid_re.finditer(r2.stdout):
         iface, serial = m.group(1), m.group(2)
