@@ -352,7 +352,7 @@
 
       // Denkovi tests
       (data.denkovi || []).forEach(dev => {
-        const rows = [0,1,2].map(ch =>
+        const rows = Array.from({length: 16}, (_, ch) => ch).map(ch =>
           makeTestRow('denkovi_toggle', `Test Toggle CH${ch}`,
             {denkovi_host: dev.host, channel_idx: ch},
             `denkovi-${dev.host}-ch${ch}`));
