@@ -240,6 +240,30 @@
     let _results = {};
     let _tests = {};
 
+    // neoVI FIRE 3 channel-role -> DUT signal/connector, from core-stack's
+    // hil_benches.pkl (mnemosyne_bench fire3 config) -- same High Pine 1.0
+    // harness design/wiring across all these benches, so this mapping holds
+    // regardless of which specific neoVI serial is plugged in.
+    const INTREPID_CAN_MAP = {
+      hscan:   {signal: 'CAN_1',  connector: 'J10'},
+      hscan2:  {signal: 'CAN_2',  connector: 'J10'},
+      hscan3:  {signal: 'CAN_3',  connector: 'J15'},
+      hscan4:  {signal: 'CAN_4',  connector: 'J15'},
+      hscan5:  {signal: 'CAN_5',  connector: 'J9'},
+      hscan6:  {signal: 'CAN_6',  connector: 'J9'},
+      hscan7:  {signal: 'CAN_7',  connector: 'J15'},
+      mscan:   {signal: 'CAN_8',  connector: 'J15'},
+      dwcan09: {signal: 'CAN_9',  connector: 'J10'},
+      dwcan10: {signal: 'CAN_10', connector: 'J10'},
+    };
+
+    function intrepidCanLabel(iface) {
+      const m = iface.match(/^(.*)_([0-9A-Za-z]{6})$/);
+      const role = m ? m[1] : iface;
+      const mapped = INTREPID_CAN_MAP[role];
+      return mapped ? `${mapped.signal} (${mapped.connector})` : iface;
+    }
+
     function setIp(ip) {
       document.getElementById('target-ip').value = ip;
     }
@@ -361,7 +385,7 @@
         // which carry FlexRay/other traffic, not CAN) -- listens for real bus
         // traffic rather than bridging two arbitrary channels.
         ifaces.filter(i => /can/i.test(i)).forEach(iface =>
-          rows.push(makeTestRow('can_alive', `Test CAN Alive (${iface})`,
+          rows.push(makeTestRow('can_alive', `Test CAN Alive — ${intrepidCanLabel(iface)}`,
             {iface, bitrate: 500000, duration_s: 3},
             `can-alive-${dev.serial_number}-${iface}`)));
 
