@@ -149,6 +149,26 @@
     .chip:hover { color:var(--text); border-color:var(--blue); }
     .spinner { display:inline-block; animation:spin 1s linear infinite; }
     @keyframes spin { to { transform:rotate(360deg); } }
+
+    /* Denkovi manual relay control */
+    .denkovi-row {
+      display:grid; grid-template-columns:70px 130px 1fr; align-items:center; gap:12px;
+    }
+    .denkovi-led {
+      display:inline-block; width:10px; height:10px; border-radius:50%;
+      margin-right:8px; vertical-align:middle;
+    }
+    .denkovi-led-on { background:var(--green); box-shadow:0 0 6px var(--green); }
+    .denkovi-led-off { background:var(--gray); }
+    .denkovi-led-unknown { background:var(--muted); }
+    .denkovi-onoff-btn {
+      border-radius:5px; cursor:pointer; font-family:inherit;
+      font-size:11px; font-weight:600; padding:6px 14px;
+    }
+    .denkovi-on-btn { background:#14532d; border:1px solid var(--green); color:var(--green); }
+    .denkovi-on-btn:hover { background:#166534; }
+    .denkovi-off-btn { background:#450a0a; border:1px solid var(--red); color:var(--red); margin-left:6px; }
+    .denkovi-off-btn:hover { background:#5a0d0d; }
   </style>
 </head>
 <body>
@@ -350,12 +370,17 @@
           <div class="test-rows">${rows.join('')}</div></div>`);
       });
 
-      // Denkovi tests
+      // Denkovi manual relay control — direct ON/OFF per channel with live LED state
       (data.denkovi || []).forEach(dev => {
-        const rows = Array.from({length: 16}, (_, ch) => ch).map(ch =>
-          makeTestRow('denkovi_toggle', `Test Toggle Q${ch + 1}`,
-            {denkovi_host: dev.host, channel_idx: ch},
-            `denkovi-${dev.host}-ch${ch}`));
+        const rows = Array.from({length: 16}, (_, ch) => ch).map(ch => `
+          <div class="denkovi-row" id="denkovi-row-${dev.host}-${ch}">
+            <div><span class="denkovi-led denkovi-led-unknown" id="denkovi-led-${dev.host}-${ch}"></span>Q${ch + 1}</div>
+            <div>
+              <button class="denkovi-onoff-btn denkovi-on-btn" onclick="setDenkoviChannel('${dev.host}', ${ch}, true)">ON</button>
+              <button class="denkovi-onoff-btn denkovi-off-btn" onclick="setDenkoviChannel('${dev.host}', ${ch}, false)">OFF</button>
+            </div>
+            <div class="test-detail" id="denkovi-state-${dev.host}-${ch}">Unknown</div>
+          </div>`);
         cards.push(`<div class="test-card">
           <div class="test-card-header">
             <div><div class="test-card-name">Denkovi smartDEN IP-16R</div>
@@ -438,6 +463,59 @@
         </div></div>`);
 
       container.innerHTML = cards.join('') || '<div style="color:var(--muted);font-size:11px;">No testable devices discovered</div>';
+
+      (data.denkovi || []).forEach(dev => refreshDenkoviState(dev.host));
+    }
+
+    let _denkoviState = {};   // denkovi_host -> array of 16 booleans (null = unknown)
+
+    async function refreshDenkoviState(denkoviHost) {
+      try {
+        const res = await fetch('/api/tester/denkovi/state', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({host: _host, user: _user, denkovi_host: denkoviHost}),
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          _denkoviState[denkoviHost] = data.channel_states;
+          data.channel_states.forEach((_, ch) => updateDenkoviRow(denkoviHost, ch));
+        }
+      } catch(e) { /* leave as unknown */ }
+    }
+
+    function updateDenkoviRow(denkoviHost, ch) {
+      const states = _denkoviState[denkoviHost];
+      const state = states ? states[ch] : null;
+      const led = document.getElementById(`denkovi-led-${denkoviHost}-${ch}`);
+      const label = document.getElementById(`denkovi-state-${denkoviHost}-${ch}`);
+      if (!led || !label) return;
+      if (state === null || state === undefined) {
+        led.className = 'denkovi-led denkovi-led-unknown';
+        label.textContent = 'Unknown';
+      } else {
+        led.className = 'denkovi-led ' + (state ? 'denkovi-led-on' : 'denkovi-led-off');
+        label.textContent = state ? 'ON' : 'OFF';
+      }
+    }
+
+    async function setDenkoviChannel(denkoviHost, ch, state) {
+      const label = document.getElementById(`denkovi-state-${denkoviHost}-${ch}`);
+      if (label) label.textContent = 'Setting…';
+      try {
+        const res = await fetch('/api/tester/denkovi/set', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({host: _host, user: _user, denkovi_host: denkoviHost, channel_idx: ch, state}),
+        });
+        const data = await res.json();
+        if (!data.ok) {
+          alert('Failed to set Q' + (ch + 1) + ': ' + (data.error || 'unknown error'));
+        }
+      } catch(e) {
+        alert('Failed to set Q' + (ch + 1) + ': ' + e);
+      }
+      await refreshDenkoviState(denkoviHost);
     }
 
     function makeTestRow(testName, label, params, key) {

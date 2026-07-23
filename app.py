@@ -659,6 +659,35 @@ def tester_run():
     return jsonify(result.to_dict())
 
 
+@app.route("/api/tester/denkovi/state", methods=["POST"])
+def tester_denkovi_state():
+    from devices.denkovi_relay import DenkoviRelaySSH
+    data = request.get_json(silent=True) or {}
+    host = data.get("host", "")
+    user = (data.get("user") or "dev").strip()
+    denkovi_host = data.get("denkovi_host", "")
+    relay = DenkoviRelaySSH(denkovi_host, host, user)
+    result = relay.check({"name": denkovi_host, "channels": []})
+    return jsonify(result)
+
+
+@app.route("/api/tester/denkovi/set", methods=["POST"])
+def tester_denkovi_set():
+    from devices.denkovi_relay import DenkoviRelaySSH
+    data = request.get_json(silent=True) or {}
+    host = data.get("host", "")
+    user = (data.get("user") or "dev").strip()
+    denkovi_host = data.get("denkovi_host", "")
+    channel_idx = int(data.get("channel_idx", 0))
+    state = bool(data.get("state"))
+    relay = DenkoviRelaySSH(denkovi_host, host, user)
+    try:
+        result = relay.set_channel(channel_idx, state)
+        return jsonify({"ok": True, **result})
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 500
+
+
 # ---------------------------------------------------------------------------
 # Startup
 # ---------------------------------------------------------------------------
