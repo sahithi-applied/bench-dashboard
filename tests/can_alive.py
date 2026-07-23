@@ -25,8 +25,11 @@ _CAN_ALIVE_SCRIPT = textwrap.dedent("""\
         result["error"] = f"Failed to bring up {iface}: {up.stderr.strip()}"
         print(json.dumps(result))
     else:
+        # `timeout` force-kills candump after duration_s regardless of
+        # candump's own -T/-n flags, which don't reliably self-terminate
+        # when there's zero traffic on the bus.
         dump = subprocess.run(
-            ["candump", "-T", str(duration_s * 1000), "-n", "50", iface],
+            ["timeout", str(duration_s), "candump", iface],
             capture_output=True, text=True)
         frames = [l for l in dump.stdout.splitlines() if l.strip()]
         result["frames"] = frames[:10]
