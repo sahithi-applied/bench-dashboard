@@ -357,6 +357,14 @@
             {tx_iface: ifaces[0], rx_iface: ifaces[1]},
             `can-${dev.serial_number}`));
 
+        // One CAN Alive row per real CAN channel (excludes eth/flxr channels,
+        // which carry FlexRay/other traffic, not CAN) -- listens for real bus
+        // traffic rather than bridging two arbitrary channels.
+        ifaces.filter(i => /can/i.test(i)).forEach(iface =>
+          rows.push(makeTestRow('can_alive', `Test CAN Alive (${iface})`,
+            {iface, bitrate: 500000, duration_s: 3},
+            `can-alive-${dev.serial_number}-${iface}`)));
+
         rows.push(makeTestRow('lin_check', 'Test LIN Interface',
           {serial_number: dev.serial_number},
           `lin-${dev.serial_number}`));
