@@ -14,7 +14,7 @@ def run(ssh_host: str, ssh_user: str, denkovi_host: str,
         channel_idx: int = 0) -> TestResult:
     t0 = time.time()
     result = TestResult(
-        test_name=f"Denkovi Toggle CH{channel_idx}",
+        test_name=f"Denkovi Toggle Q{channel_idx + 1}",
         device_name=f"Denkovi {denkovi_host}",
         status="running",
     )
