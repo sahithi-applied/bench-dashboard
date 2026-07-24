@@ -171,6 +171,9 @@
     .denkovi-off-btn:hover { background:#5a0d0d; }
 
     /* LabJack toggle/DAC rows */
+    .labjack-read-row {
+      display:grid; grid-template-columns:1fr 90px 1fr; align-items:center; gap:10px;
+    }
     .labjack-toggle-row {
       display:grid; grid-template-columns:1fr 70px 70px 1fr; align-items:center; gap:10px;
     }
@@ -587,7 +590,7 @@
       // LabJack
       if ((data.labjack || []).length) {
         const readRows = LABJACK_AIN_MAP.map(ch => `
-          <div class="test-row" id="lj-read-row-${ch.channel}">
+          <div class="labjack-read-row" id="lj-read-row-${ch.channel}">
             <button class="test-btn" onclick="runLabjackRead('${ch.channel}', '${labjackChannelLabel(ch)}')">
               Read ${ch.channel} — ${labjackChannelLabel(ch)}
             </button>
