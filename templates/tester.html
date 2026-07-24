@@ -169,6 +169,14 @@
     .denkovi-on-btn:hover { background:#166534; }
     .denkovi-off-btn { background:#450a0a; border:1px solid var(--red); color:var(--red); margin-left:6px; }
     .denkovi-off-btn:hover { background:#5a0d0d; }
+
+    /* LabJack toggle/DAC rows */
+    .labjack-toggle-row {
+      display:grid; grid-template-columns:1fr 70px 70px 1fr; align-items:center; gap:10px;
+    }
+    .labjack-dac-row {
+      display:grid; grid-template-columns:1fr 60px 70px 70px 1fr; align-items:center; gap:10px;
+    }
   </style>
 </head>
 <body>
@@ -262,6 +270,91 @@
       const role = m ? m[1] : iface;
       const mapped = INTREPID_CAN_MAP[role];
       return mapped ? `${mapped.signal} (${mapped.connector})` : iface;
+    }
+
+    // LabJack AIN0-9 -> DUT signal, traced from the schematic (Voltage_Divider
+    // blocks) cross-referenced with LabJack T7's fixed FIO/EIO-to-AIN pinout
+    // (FIO0-7 = AIN0-7, EIO0-1 = AIN8-9). AIN10+ and the CIO-based dividers
+    // (_4, _5, _8, _9, _10) aren't covered -- CIO pins aren't analog-capable
+    // on a T7, so those need a different read method entirely.
+    const LABJACK_AIN_MAP = [
+      {channel: 'AIN0', signal: 'HSD2_ASIL_C_OUT_1', connector: 'J15'},
+      {channel: 'AIN1', signal: 'MSDI_CONN_ADC_IN_0', connector: 'J16'},
+      {channel: 'AIN2', signal: 'FHB_OUT_L_0', connector: 'J9'},
+      {channel: 'AIN3', signal: 'FHB_OUT_H_0', connector: 'J9'},
+      {channel: 'AIN4', signal: 'eFUSE3_QM_OUT0', connector: 'J10'},
+      {channel: 'AIN5', signal: 'eFUSE3_QM_OUT1', connector: 'J10'},
+      {channel: 'AIN6', signal: 'eFUSE3_ASIL_OUT0', connector: 'J12'},
+      {channel: 'AIN7', signal: 'eFUSE3_ASIL_OUT1', connector: 'J12'},
+      {channel: 'AIN8', signal: 'HSD0_QM_B_OUT_0', connector: 'J14'},
+      {channel: 'AIN9', signal: 'HSD0_QM_B_OUT_1', connector: 'J14'},
+    ];
+
+    // DAC0 traced to LSD_QM_OUT0 via the schematic. DAC1's destination
+    // wasn't confirmed from the trace -- included but unlabeled.
+    const LABJACK_DAC_MAP = [
+      {channel: 'DAC0', signal: 'LSD_QM_OUT0'},
+      {channel: 'DAC1', signal: '(destination unconfirmed)'},
+    ];
+
+    async function runLabjackToggle(channel, signalLabel) {
+      const durSel = document.getElementById(`lj-toggle-dur-${channel}`);
+      const duration_s = parseInt(durSel.value, 10);
+      const statusEl = document.getElementById(`lj-toggle-status-${channel}`);
+      const detailEl = document.getElementById(`lj-toggle-detail-${channel}`);
+      statusEl.className = 'test-status ts-running';
+      statusEl.textContent = `⟳ Holding HIGH ${duration_s}s…`;
+      detailEl.textContent = '';
+      try {
+        const res = await fetch('/api/tester/run', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({host: _host, user: _user, test: 'labjack_toggle',
+            params: {channel, signal_label: signalLabel, duration_s}}),
+        });
+        const data = await res.json();
+        const cls = {pass:'ts-pass', fail:'ts-fail', error:'ts-error'}[data.status] || 'ts-notrun';
+        const icon = {pass:'● PASS', fail:'✗ FAIL', error:'⚠ Error'}[data.status] || '○';
+        statusEl.className = 'test-status ' + cls;
+        statusEl.textContent = icon;
+        detailEl.innerHTML = (data.output ? `<span class="tok">${data.output}</span>` : '') +
+                              (data.error ? `<br><span class="tfail">${data.error}</span>` : '');
+      } catch(e) {
+        statusEl.className = 'test-status ts-error';
+        statusEl.textContent = '⚠ Error';
+        detailEl.textContent = String(e);
+      }
+    }
+
+    async function runLabjackDac(dacChannel, signalLabel) {
+      const voltsEl = document.getElementById(`lj-dac-volts-${dacChannel}`);
+      const durSel = document.getElementById(`lj-dac-dur-${dacChannel}`);
+      const voltage = parseFloat(voltsEl.value);
+      const duration_s = parseInt(durSel.value, 10);
+      const statusEl = document.getElementById(`lj-dac-status-${dacChannel}`);
+      const detailEl = document.getElementById(`lj-dac-detail-${dacChannel}`);
+      statusEl.className = 'test-status ts-running';
+      statusEl.textContent = `⟳ Outputting ${voltage}V for ${duration_s}s…`;
+      detailEl.textContent = '';
+      try {
+        const res = await fetch('/api/tester/run', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({host: _host, user: _user, test: 'labjack_dac',
+            params: {dac_channel: dacChannel, voltage, signal_label: signalLabel, duration_s}}),
+        });
+        const data = await res.json();
+        const cls = {pass:'ts-pass', fail:'ts-fail', error:'ts-error'}[data.status] || 'ts-notrun';
+        const icon = {pass:'● PASS', fail:'✗ FAIL', error:'⚠ Error'}[data.status] || '○';
+        statusEl.className = 'test-status ' + cls;
+        statusEl.textContent = icon;
+        detailEl.innerHTML = (data.output ? `<span class="tok">${data.output}</span>` : '') +
+                              (data.error ? `<br><span class="tfail">${data.error}</span>` : '');
+      } catch(e) {
+        statusEl.className = 'test-status ts-error';
+        statusEl.textContent = '⚠ Error';
+        detailEl.textContent = String(e);
+      }
     }
 
     function setIp(ip) {
@@ -454,6 +547,35 @@
 
       // LabJack
       if ((data.labjack || []).length) {
+        const toggleRows = LABJACK_AIN_MAP.map(ch => `
+          <div class="labjack-toggle-row" id="lj-toggle-row-${ch.channel}">
+            <button class="test-btn" onclick="runLabjackToggle('${ch.channel}', '${ch.signal} (${ch.connector})')">
+              Toggle ${ch.channel} — ${ch.signal} (${ch.connector})
+            </button>
+            <select class="ip-input" style="width:70px;padding:6px 8px;font-size:11px;" id="lj-toggle-dur-${ch.channel}">
+              <option value="10">10s</option>
+              <option value="20">20s</option>
+              <option value="30">30s</option>
+            </select>
+            <div class="test-status ts-notrun" id="lj-toggle-status-${ch.channel}">○ Not run</div>
+            <div class="test-detail" id="lj-toggle-detail-${ch.channel}"></div>
+          </div>`).join('');
+
+        const dacRows = LABJACK_DAC_MAP.map(ch => `
+          <div class="labjack-dac-row" id="lj-dac-row-${ch.channel}">
+            <button class="test-btn" onclick="runLabjackDac('${ch.channel}', '${ch.signal}')">
+              Output ${ch.channel} — ${ch.signal}
+            </button>
+            <input class="ip-input" style="width:60px;padding:6px 8px;font-size:11px;" type="number" step="0.1" min="0" max="5" value="3.3" id="lj-dac-volts-${ch.channel}">
+            <select class="ip-input" style="width:70px;padding:6px 8px;font-size:11px;" id="lj-dac-dur-${ch.channel}">
+              <option value="10">10s</option>
+              <option value="20">20s</option>
+              <option value="30">30s</option>
+            </select>
+            <div class="test-status ts-notrun" id="lj-dac-status-${ch.channel}">○ Not run</div>
+            <div class="test-detail" id="lj-dac-detail-${ch.channel}"></div>
+          </div>`).join('');
+
         cards.push(`<div class="test-card">
           <div class="test-card-header">
             <div><div class="test-card-name">LabJack T7</div>
@@ -462,7 +584,16 @@
           </div>
           <div class="test-rows">
             ${makeTestRow('labjack_voltage', 'Test Voltage Read (AIN0–9)', {}, 'labjack-ain')}
-          </div></div>`);
+          </div>
+          <div style="padding:0 16px 4px;font-size:10px;color:var(--muted);border-top:1px solid var(--border);margin-top:4px;padding-top:10px;">
+            DIGITAL TOGGLE — drives 3.3V/0V, hold duration for multimeter probing
+          </div>
+          <div class="test-rows">${toggleRows}</div>
+          <div style="padding:0 16px 4px;font-size:10px;color:var(--muted);border-top:1px solid var(--border);margin-top:4px;padding-top:10px;">
+            DAC ANALOG OUTPUT — real voltage, not just digital high/low
+          </div>
+          <div class="test-rows">${dacRows}</div>
+          </div>`);
       }
 
       // LIN communication (PCAN-USB Pro FD)

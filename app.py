@@ -592,7 +592,7 @@ def tester_connect():
 def tester_run():
     from tests import (can_loopback, can_alive, lin_alive, relay_toggle, denkovi_toggle,
                        hub_port_cycle, ethernet_ping,
-                       labjack_voltage, lin_check, flexray_check,
+                       labjack_voltage, labjack_toggle, labjack_dac, lin_check, flexray_check,
                        lin_communication, flexray_communication)
     data = request.get_json(silent=True) or {}
     host = data.get("host", "")
@@ -636,6 +636,17 @@ def tester_run():
                                        params.get("device_name", ""))
         elif test == "labjack_voltage":
             result = labjack_voltage.run(host, user)
+        elif test == "labjack_toggle":
+            result = labjack_toggle.run(host, user,
+                                        params["channel"],
+                                        params.get("signal_label", ""),
+                                        int(params.get("duration_s", 10)))
+        elif test == "labjack_dac":
+            result = labjack_dac.run(host, user,
+                                     params["dac_channel"],
+                                     float(params.get("voltage", 3.3)),
+                                     params.get("signal_label", ""),
+                                     int(params.get("duration_s", 10)))
         elif test == "flexray_check":
             result = flexray_check.run(host, user,
                                        params.get("device_ip", "192.168.1.15"),
