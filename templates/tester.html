@@ -301,12 +301,12 @@
       return ch.connector ? `${ch.signal} (${ch.connector})` : ch.signal;
     }
 
-    // DAC0 confirmed -> LSD_QM_OUT0 (same node AIN11 reads back -- driving
-    // DAC0 and reading AIN11 afterward is a real end-to-end wiring check).
-    // DAC1's destination was never traced -- left unlabeled.
+    // Both confirmed via click-tracing. These stimulate DUT *inputs*
+    // (ADC_CONN_IN_1 / MSDI_CONN_ADC_IN_0), separate/unrelated to the AIN
+    // channels above which monitor DUT *outputs* -- no shared node with AIN11.
     const LABJACK_DAC_MAP = [
-      {channel: 'DAC0', signal: 'LSD_QM_OUT0 (also read back via AIN11)'},
-      {channel: 'DAC1', signal: '(destination unconfirmed)'},
+      {channel: 'DAC0', signal: 'MSDI_CONN_ADC_IN_0'},
+      {channel: 'DAC1', signal: 'ADC_CONN_IN_1'},
     ];
 
     async function runLabjackToggle(channel, signalLabel) {
