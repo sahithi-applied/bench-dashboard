@@ -39,6 +39,12 @@ _LABJACK_SCRIPT = textwrap.dedent("""\
                 # floating pin, giving a value with no relation to the actual
                 # voltage to ground that a multimeter would show.
                 ljm.eWriteName(handle, f"{ch}_NEGATIVE_CH", 199)
+                # High-impedance divider-fed sources need more settling time
+                # than the default (0 = fastest/auto) -- too fast causes
+                # crosstalk where each channel's reading gets dragged toward
+                # whatever the previous channel in the scan was.
+                ljm.eWriteName(handle, f"{ch}_RESOLUTION_INDEX", 8)
+                ljm.eWriteName(handle, f"{ch}_SETTLING_US", 10000)
                 val = ljm.eReadName(handle, ch)
                 readings[ch] = round(val, 4)
             except Exception as e:

@@ -24,6 +24,10 @@ _READ_SCRIPT = textwrap.dedent("""\
         # value that has nothing to do with the actual voltage to ground
         # (which is what a multimeter shows).
         ljm.eWriteName(handle, f"{channel}_NEGATIVE_CH", 199)
+        # High-impedance divider-fed source needs more settling time than
+        # the default (0 = fastest/auto) to sample accurately.
+        ljm.eWriteName(handle, f"{channel}_RESOLUTION_INDEX", 8)
+        ljm.eWriteName(handle, f"{channel}_SETTLING_US", 10000)
         value = round(ljm.eReadName(handle, channel), 4)
         ljm.close(handle)
 
