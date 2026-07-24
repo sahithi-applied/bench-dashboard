@@ -592,7 +592,7 @@
         const readRows = LABJACK_AIN_MAP.map(ch => `
           <div class="labjack-read-row" id="lj-read-row-${ch.channel}">
             <button class="test-btn" onclick="runLabjackRead('${ch.channel}', '${labjackChannelLabel(ch)}')">
-              Read ${ch.channel} — ${labjackChannelLabel(ch)}
+              Read ${ch.pin} — ${labjackChannelLabel(ch)}
             </button>
             <div class="test-status ts-notrun" id="lj-read-status-${ch.channel}">○ Not run</div>
             <div class="test-detail" id="lj-read-detail-${ch.channel}"></div>
