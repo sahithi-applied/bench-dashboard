@@ -393,6 +393,14 @@
           {serial_number: dev.serial_number},
           `lin-${dev.serial_number}`));
 
+        // Pre-flash wiring sanity check: neoVI acts as LIN master and
+        // transmits itself (LIN is master-polled, nothing to passively
+        // listen for without DUT firmware). Checks electrical fault flags,
+        // not DUT-side continuity.
+        rows.push(makeTestRow('lin_alive', 'Test LIN Master (neoVI)',
+          {serial_number: dev.serial_number, frame_id: 1},
+          `lin-alive-${dev.serial_number}`));
+
         cards.push(`<div class="test-card">
           <div class="test-card-header">
             <div><div class="test-card-name">Intrepid NeoVI Fire 3</div>
