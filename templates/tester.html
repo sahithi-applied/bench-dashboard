@@ -281,20 +281,20 @@
     // so HSD0_QM_A_OUT_8, MSDI_DIG_IN_0, FHB_OUT_L/H_4, eFUSE0_ASIL_OUT, and
     // eFUSE0_QM_OUT aren't reachable via AIN naming regardless of wiring.
     const LABJACK_AIN_MAP = [
-      {channel: 'AIN0',  signal: 'HSD2_ASIL_C_OUT_1', connector: 'J15'},
-      {channel: 'AIN1',  signal: 'HSD2_ASIL_D_OUT_0',  connector: ''},
-      {channel: 'AIN2',  signal: 'FHB_OUT_L_0', connector: 'J9'},
-      {channel: 'AIN3',  signal: 'FHB_OUT_H_0', connector: 'J9'},
-      {channel: 'AIN4',  signal: 'eFUSE3_QM_OUT0', connector: 'J10'},
-      {channel: 'AIN5',  signal: 'eFUSE3_QM_OUT1', connector: 'J10'},
-      {channel: 'AIN6',  signal: 'eFUSE3_ASIL_OUT0', connector: 'J12'},
-      {channel: 'AIN7',  signal: 'eFUSE3_ASIL_OUT1', connector: 'J12'},
-      {channel: 'AIN8',  signal: 'HSD0_QM_B_OUT_0', connector: 'J14'},
-      {channel: 'AIN9',  signal: 'HSD0_QM_B_OUT_1', connector: 'J14'},
-      {channel: 'AIN10', signal: 'HSD1_QM_D_OUT_0', connector: 'J10'},
-      {channel: 'AIN11', signal: 'LSD_QM_OUT0',      connector: ''},
-      {channel: 'AIN12', signal: 'MSDI_DIG_IN_1',    connector: ''},
-      {channel: 'AIN13', signal: 'MSDI_DIG_IN_2',    connector: ''},
+      {channel: 'AIN0',  pin: 'FIO0', signal: 'HSD2_ASIL_C_OUT_1', connector: 'J15'},
+      {channel: 'AIN1',  pin: 'FIO1', signal: 'HSD2_ASIL_D_OUT_0',  connector: ''},
+      {channel: 'AIN2',  pin: 'FIO2', signal: 'FHB_OUT_L_0', connector: 'J9'},
+      {channel: 'AIN3',  pin: 'FIO3', signal: 'FHB_OUT_H_0', connector: 'J9'},
+      {channel: 'AIN4',  pin: 'FIO4', signal: 'eFUSE3_QM_OUT0', connector: 'J10'},
+      {channel: 'AIN5',  pin: 'FIO5', signal: 'eFUSE3_QM_OUT1', connector: 'J10'},
+      {channel: 'AIN6',  pin: 'FIO6', signal: 'eFUSE3_ASIL_OUT0', connector: 'J12'},
+      {channel: 'AIN7',  pin: 'FIO7', signal: 'eFUSE3_ASIL_OUT1', connector: 'J12'},
+      {channel: 'AIN8',  pin: 'EIO0', signal: 'HSD0_QM_B_OUT_0', connector: 'J14'},
+      {channel: 'AIN9',  pin: 'EIO1', signal: 'HSD0_QM_B_OUT_1', connector: 'J14'},
+      {channel: 'AIN10', pin: 'EIO2', signal: 'HSD1_QM_D_OUT_0', connector: 'J10'},
+      {channel: 'AIN11', pin: 'EIO3', signal: 'LSD_QM_OUT0',      connector: ''},
+      {channel: 'AIN12', pin: 'EIO4', signal: 'MSDI_DIG_IN_1',    connector: ''},
+      {channel: 'AIN13', pin: 'EIO5', signal: 'MSDI_DIG_IN_2',    connector: ''},
     ];
 
     function labjackChannelLabel(ch) {
@@ -560,17 +560,17 @@
       // LabJack
       if ((data.labjack || []).length) {
         const toggleRows = LABJACK_AIN_MAP.map(ch => `
-          <div class="labjack-toggle-row" id="lj-toggle-row-${ch.channel}">
-            <button class="test-btn" onclick="runLabjackToggle('${ch.channel}', '${labjackChannelLabel(ch)}')">
-              Toggle ${ch.channel} — ${labjackChannelLabel(ch)}
+          <div class="labjack-toggle-row" id="lj-toggle-row-${ch.pin}">
+            <button class="test-btn" onclick="runLabjackToggle('${ch.pin}', '${labjackChannelLabel(ch)}')">
+              Toggle ${ch.pin} — ${labjackChannelLabel(ch)}
             </button>
-            <select class="ip-input" style="width:70px;padding:6px 8px;font-size:11px;" id="lj-toggle-dur-${ch.channel}">
+            <select class="ip-input" style="width:70px;padding:6px 8px;font-size:11px;" id="lj-toggle-dur-${ch.pin}">
               <option value="10">10s</option>
               <option value="20">20s</option>
               <option value="30">30s</option>
             </select>
-            <div class="test-status ts-notrun" id="lj-toggle-status-${ch.channel}">○ Not run</div>
-            <div class="test-detail" id="lj-toggle-detail-${ch.channel}"></div>
+            <div class="test-status ts-notrun" id="lj-toggle-status-${ch.pin}">○ Not run</div>
+            <div class="test-detail" id="lj-toggle-detail-${ch.pin}"></div>
           </div>`).join('');
 
         const dacRows = LABJACK_DAC_MAP.map(ch => `
