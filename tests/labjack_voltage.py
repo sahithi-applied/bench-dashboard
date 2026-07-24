@@ -1,12 +1,15 @@
 """LabJack T7 functional test — read analog inputs via LJM library on bench machine.
 
-Reads AIN0-9, covering the ~10 voltage-divider inputs shown on the schematic
-(Voltage_Divider_1-10, each an LJTick-Divider-4 reading a DUT rail like
-HSD/eFuse/FHB outputs). There's no core-stack-verified AIN-number-to-signal
-mapping for this bench (only DAC0/DAC1 outputs are modeled there), so this
-reports raw voltages for manual inspection rather than asserting which
-channel is which DUT signal or what a "healthy" value should be -- with no
-firmware flashed there's no known-good baseline to compare against.
+Reads AIN0-13, covering all voltage-divider inputs traced from the schematic
+(Voltage_Divider_1-4/6-8, each an LJTick-Divider-4 reading a DUT rail like
+HSD/eFuse/FHB/LSD outputs) that are actually analog-capable on a T7 --
+Divider_5/9/10 use EIO6-7/CIO0-3, which are digital-only pins with no AIN
+alias, so those aren't reachable this way regardless. Channel-to-signal
+mapping was hand-traced and click-verified against the schematic PDF (see
+LABJACK_AIN_MAP in tester.html); there's no core-stack-verified mapping for
+this bench (only DAC0/DAC1 outputs are modeled there). Reports raw voltages
+for manual inspection -- with no firmware flashed there's no known-good
+baseline to assert pass/fail against.
 """
 from __future__ import annotations
 import textwrap
@@ -28,7 +31,8 @@ _LABJACK_SCRIPT = textwrap.dedent("""\
 
         readings = {}
         for ch in ["AIN0", "AIN1", "AIN2", "AIN3", "AIN4", "AIN5",
-                   "AIN6", "AIN7", "AIN8", "AIN9"]:
+                   "AIN6", "AIN7", "AIN8", "AIN9", "AIN10", "AIN11",
+                   "AIN12", "AIN13"]:
             try:
                 val = ljm.eReadName(handle, ch)
                 readings[ch] = round(val, 4)

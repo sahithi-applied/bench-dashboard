@@ -272,28 +272,40 @@
       return mapped ? `${mapped.signal} (${mapped.connector})` : iface;
     }
 
-    // LabJack AIN0-9 -> DUT signal, traced from the schematic (Voltage_Divider
-    // blocks) cross-referenced with LabJack T7's fixed FIO/EIO-to-AIN pinout
-    // (FIO0-7 = AIN0-7, EIO0-1 = AIN8-9). AIN10+ and the CIO-based dividers
-    // (_4, _5, _8, _9, _10) aren't covered -- CIO pins aren't analog-capable
-    // on a T7, so those need a different read method entirely.
+    // LabJack AIN0-13 -> DUT signal. Click-verified against the schematic PDF
+    // (each wire traced to its actual endpoint, not just visual proximity --
+    // several entries here corrected an earlier proximity-based guess that
+    // turned out wrong). Cross-referenced with LabJack T7's fixed FIO/EIO-to-AIN
+    // pinout (FIO0-7 = AIN0-7, EIO0-5 = AIN8-13). Divider_5/9/10 (EIO6-7,
+    // CIO0-3) are excluded entirely -- those pins have no AIN alias on a T7,
+    // so HSD0_QM_A_OUT_8, MSDI_DIG_IN_0, FHB_OUT_L/H_4, eFUSE0_ASIL_OUT, and
+    // eFUSE0_QM_OUT aren't reachable via AIN naming regardless of wiring.
     const LABJACK_AIN_MAP = [
-      {channel: 'AIN0', signal: 'HSD2_ASIL_C_OUT_1', connector: 'J15'},
-      {channel: 'AIN1', signal: 'MSDI_CONN_ADC_IN_0', connector: 'J16'},
-      {channel: 'AIN2', signal: 'FHB_OUT_L_0', connector: 'J9'},
-      {channel: 'AIN3', signal: 'FHB_OUT_H_0', connector: 'J9'},
-      {channel: 'AIN4', signal: 'eFUSE3_QM_OUT0', connector: 'J10'},
-      {channel: 'AIN5', signal: 'eFUSE3_QM_OUT1', connector: 'J10'},
-      {channel: 'AIN6', signal: 'eFUSE3_ASIL_OUT0', connector: 'J12'},
-      {channel: 'AIN7', signal: 'eFUSE3_ASIL_OUT1', connector: 'J12'},
-      {channel: 'AIN8', signal: 'HSD0_QM_B_OUT_0', connector: 'J14'},
-      {channel: 'AIN9', signal: 'HSD0_QM_B_OUT_1', connector: 'J14'},
+      {channel: 'AIN0',  signal: 'HSD2_ASIL_C_OUT_1', connector: 'J15'},
+      {channel: 'AIN1',  signal: 'HSD2_ASIL_D_OUT_0',  connector: ''},
+      {channel: 'AIN2',  signal: 'FHB_OUT_L_0', connector: 'J9'},
+      {channel: 'AIN3',  signal: 'FHB_OUT_H_0', connector: 'J9'},
+      {channel: 'AIN4',  signal: 'eFUSE3_QM_OUT0', connector: 'J10'},
+      {channel: 'AIN5',  signal: 'eFUSE3_QM_OUT1', connector: 'J10'},
+      {channel: 'AIN6',  signal: 'eFUSE3_ASIL_OUT0', connector: 'J12'},
+      {channel: 'AIN7',  signal: 'eFUSE3_ASIL_OUT1', connector: 'J12'},
+      {channel: 'AIN8',  signal: 'HSD0_QM_B_OUT_0', connector: 'J14'},
+      {channel: 'AIN9',  signal: 'HSD0_QM_B_OUT_1', connector: 'J14'},
+      {channel: 'AIN10', signal: 'HSD1_QM_D_OUT_0', connector: 'J10'},
+      {channel: 'AIN11', signal: 'LSD_QM_OUT0',      connector: ''},
+      {channel: 'AIN12', signal: 'MSDI_DIG_IN_1',    connector: ''},
+      {channel: 'AIN13', signal: 'MSDI_DIG_IN_2',    connector: ''},
     ];
 
-    // DAC0 traced to LSD_QM_OUT0 via the schematic. DAC1's destination
-    // wasn't confirmed from the trace -- included but unlabeled.
+    function labjackChannelLabel(ch) {
+      return ch.connector ? `${ch.signal} (${ch.connector})` : ch.signal;
+    }
+
+    // DAC0 confirmed -> LSD_QM_OUT0 (same node AIN11 reads back -- driving
+    // DAC0 and reading AIN11 afterward is a real end-to-end wiring check).
+    // DAC1's destination was never traced -- left unlabeled.
     const LABJACK_DAC_MAP = [
-      {channel: 'DAC0', signal: 'LSD_QM_OUT0'},
+      {channel: 'DAC0', signal: 'LSD_QM_OUT0 (also read back via AIN11)'},
       {channel: 'DAC1', signal: '(destination unconfirmed)'},
     ];
 
@@ -549,8 +561,8 @@
       if ((data.labjack || []).length) {
         const toggleRows = LABJACK_AIN_MAP.map(ch => `
           <div class="labjack-toggle-row" id="lj-toggle-row-${ch.channel}">
-            <button class="test-btn" onclick="runLabjackToggle('${ch.channel}', '${ch.signal} (${ch.connector})')">
-              Toggle ${ch.channel} — ${ch.signal} (${ch.connector})
+            <button class="test-btn" onclick="runLabjackToggle('${ch.channel}', '${labjackChannelLabel(ch)}')">
+              Toggle ${ch.channel} — ${labjackChannelLabel(ch)}
             </button>
             <select class="ip-input" style="width:70px;padding:6px 8px;font-size:11px;" id="lj-toggle-dur-${ch.channel}">
               <option value="10">10s</option>
@@ -583,7 +595,7 @@
             <span class="badge badge-ok">OK</span>
           </div>
           <div class="test-rows">
-            ${makeTestRow('labjack_voltage', 'Test Voltage Read (AIN0–9)', {}, 'labjack-ain')}
+            ${makeTestRow('labjack_voltage', 'Test Voltage Read (AIN0–13)', {}, 'labjack-ain')}
           </div>
           <div style="padding:0 16px 4px;font-size:10px;color:var(--muted);border-top:1px solid var(--border);margin-top:4px;padding-top:10px;">
             DIGITAL TOGGLE — drives 3.3V/0V, hold duration for multimeter probing
