@@ -309,6 +309,33 @@
       {channel: 'DAC1', signal: 'ADC_CONN_IN_1'},
     ];
 
+    async function runLabjackRead(channel, signalLabel) {
+      const statusEl = document.getElementById(`lj-read-status-${channel}`);
+      const detailEl = document.getElementById(`lj-read-detail-${channel}`);
+      statusEl.className = 'test-status ts-running';
+      statusEl.textContent = '⟳ Reading…';
+      detailEl.textContent = '';
+      try {
+        const res = await fetch('/api/tester/run', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({host: _host, user: _user, test: 'labjack_read',
+            params: {channel, signal_label: signalLabel}}),
+        });
+        const data = await res.json();
+        const cls = {pass:'ts-pass', fail:'ts-fail', error:'ts-error'}[data.status] || 'ts-notrun';
+        const icon = {pass:'● PASS', fail:'✗ FAIL', error:'⚠ Error'}[data.status] || '○';
+        statusEl.className = 'test-status ' + cls;
+        statusEl.textContent = icon;
+        detailEl.innerHTML = (data.output ? `<span class="tok">${data.output}</span>` : '') +
+                              (data.error ? `<br><span class="tfail">${data.error}</span>` : '');
+      } catch(e) {
+        statusEl.className = 'test-status ts-error';
+        statusEl.textContent = '⚠ Error';
+        detailEl.textContent = String(e);
+      }
+    }
+
     async function runLabjackToggle(channel, signalLabel) {
       const durSel = document.getElementById(`lj-toggle-dur-${channel}`);
       const duration_s = parseInt(durSel.value, 10);
@@ -559,6 +586,15 @@
 
       // LabJack
       if ((data.labjack || []).length) {
+        const readRows = LABJACK_AIN_MAP.map(ch => `
+          <div class="test-row" id="lj-read-row-${ch.channel}">
+            <button class="test-btn" onclick="runLabjackRead('${ch.channel}', '${labjackChannelLabel(ch)}')">
+              Read ${ch.channel} — ${labjackChannelLabel(ch)}
+            </button>
+            <div class="test-status ts-notrun" id="lj-read-status-${ch.channel}">○ Not run</div>
+            <div class="test-detail" id="lj-read-detail-${ch.channel}"></div>
+          </div>`).join('');
+
         const toggleRows = LABJACK_AIN_MAP.map(ch => `
           <div class="labjack-toggle-row" id="lj-toggle-row-${ch.pin}">
             <button class="test-btn" onclick="runLabjackToggle('${ch.pin}', '${labjackChannelLabel(ch)}')">
@@ -597,6 +633,10 @@
           <div class="test-rows">
             ${makeTestRow('labjack_voltage', 'Test Voltage Read (AIN0–13)', {}, 'labjack-ain')}
           </div>
+          <div style="padding:0 16px 4px;font-size:10px;color:var(--muted);border-top:1px solid var(--border);margin-top:4px;padding-top:10px;">
+            PASSIVE READ — per-channel, no driving. Matches how this circuit is actually used: DUT drives, LabJack measures.
+          </div>
+          <div class="test-rows">${readRows}</div>
           <div style="padding:0 16px 4px;font-size:10px;color:var(--muted);border-top:1px solid var(--border);margin-top:4px;padding-top:10px;">
             DIGITAL TOGGLE — drives 3.3V/0V, hold duration for multimeter probing
           </div>
