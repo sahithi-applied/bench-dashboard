@@ -41,14 +41,18 @@ _CAN_HEALTH_SCRIPT = textwrap.dedent("""\
             capture_output=True, text=True)
         out = detail.stdout
 
-        state_match = re.search(r"state\\s+(\\S+)", out)
+        state_match = re.search(r"can state\\s+(\\S+)", out)
         state = state_match.group(1) if state_match else "UNKNOWN"
         result["state"] = state
 
-        err_match = re.search(r"berr-counter\\s+tx\\s+(\\d+)\\s+rx\\s+(\\d+)", out)
-        if err_match:
-            result["tx_errors"] = int(err_match.group(1))
-            result["rx_errors"] = int(err_match.group(2))
+        # Header line "re-started bus-errors arbit-lost error-warn error-pass bus-off"
+        # is followed by a line of matching numeric columns.
+        header_match = re.search(
+            r"re-started\\s+bus-errors\\s+arbit-lost\\s+error-warn\\s+error-pass\\s+bus-off\\s*\\n\\s*(\\d+)\\s+(\\d+)\\s+(\\d+)\\s+(\\d+)\\s+(\\d+)\\s+(\\d+)",
+            out)
+        if header_match:
+            result["bus_errors"] = int(header_match.group(2))
+            result["bus_off_count"] = int(header_match.group(6))
 
         if state == "BUS-OFF":
             result["status"] = "fail"
@@ -79,12 +83,13 @@ def run(ssh_host: str, ssh_user: str, iface: str, bitrate: int = 500000) -> Test
         )
         data = ssh_exec(ssh_host, ssh_user, script, timeout=15)
         state = data.get("state", "?")
-        tx_err = data.get("tx_errors")
-        rx_err = data.get("rx_errors")
+        bus_errors = data.get("bus_errors")
+        bus_off_count = data.get("bus_off_count")
         result.input_desc = f"{iface} @ {bitrate} bps, single send attempt"
         result.output_desc = (
             f"state={state}"
-            + (f"  tx_errors={tx_err} rx_errors={rx_err}" if tx_err is not None else "")
+            + (f"  bus_errors={bus_errors} bus_off_count={bus_off_count}"
+               if bus_errors is not None else "")
         )
         result.status = data.get("status", "error")
         result.error = data.get("error")
