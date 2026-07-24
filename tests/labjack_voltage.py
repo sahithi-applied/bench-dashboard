@@ -22,7 +22,7 @@ _LABJACK_SCRIPT = textwrap.dedent("""\
     try:
         from labjack import ljm
 
-        handle = ljm.openS("T7", "USB", "ANY")
+        handle = ljm.openS("T7", "ANY", "ANY")
         info = ljm.getHandleInfo(handle)
         device_type, conn_type, serial, ip, port, max_bytes = info
 
@@ -39,7 +39,7 @@ _LABJACK_SCRIPT = textwrap.dedent("""\
 
         result.update(
             status="pass",
-            input=f"Device: T7  Serial: {serial}  Connection: USB",
+            input=f"Device: T7  Serial: {serial}  ConnType: {conn_type}  IP: {ip}",
             output="  ".join(f"{k}={v}V" for k, v in readings.items()
                              if not str(v).startswith("error")),
         )
@@ -50,7 +50,7 @@ _LABJACK_SCRIPT = textwrap.dedent("""\
         msg = str(exc)
         if "No LabJack" in msg or "Could not find" in msg:
             result.update(status="fail",
-                          error="LabJack T7 not found — check USB connection and device power")
+                          error="LabJack T7 not found — check USB/Ethernet connection and device power")
         else:
             result.update(status="error", error=msg)
 

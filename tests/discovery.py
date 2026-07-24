@@ -31,7 +31,7 @@ _DISCOVERY_SCRIPT = textwrap.dedent("""\
         vid_pid = m.group(1)
         if "StarTech" in line or vid_pid in HUB_CHIP_VIDS:
             hub_chips.append(line.strip())
-        elif vid_pid == "0cd5:0104":
+        elif vid_pid == "0cd5:0007":
             result["labjack"].append({"description": line.strip()})
 
     # StarTech hub power control usually goes through an FTDI FT232R UART --
