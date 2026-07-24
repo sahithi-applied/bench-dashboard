@@ -591,7 +591,7 @@ def tester_connect():
 @app.route("/api/tester/run", methods=["POST"])
 def tester_run():
     from tests import (can_loopback, can_alive, lin_alive, relay_toggle, denkovi_toggle,
-                       hub_port_cycle, intrepid_interfaces, ethernet_ping,
+                       hub_port_cycle, ethernet_ping,
                        labjack_voltage, lin_check, flexray_check,
                        lin_communication, flexray_communication)
     data = request.get_json(silent=True) or {}
@@ -628,18 +628,14 @@ def tester_run():
             result = hub_port_cycle.run(host, user,
                                         params["serial_path"],
                                         int(params.get("port_idx", 0)))
-        elif test == "intrepid_interfaces":
-            result = intrepid_interfaces.run(host, user,
-                                             params["serial_number"],
-                                             int(params.get("expected_count", 1)))
+        elif test == "lin_check":
+            result = lin_check.run(host, user, params.get("serial_number", ""))
         elif test == "ethernet_ping":
             result = ethernet_ping.run(host, user,
                                        params["target_ip"],
                                        params.get("device_name", ""))
         elif test == "labjack_voltage":
             result = labjack_voltage.run(host, user)
-        elif test == "lin_check":
-            result = lin_check.run(host, user, params.get("serial_number", ""))
         elif test == "flexray_check":
             result = flexray_check.run(host, user,
                                        params.get("device_ip", "192.168.1.15"),

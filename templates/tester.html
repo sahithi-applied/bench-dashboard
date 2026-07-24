@@ -372,10 +372,6 @@
         const ifaces = dev.interfaces || [];
         const rows = [];
 
-        rows.push(makeTestRow('intrepid_interfaces', 'Test Interfaces',
-          {serial_number: dev.serial_number, expected_count: 1},
-          `intrepid-${dev.serial_number}-ifaces`));
-
         if (ifaces.length >= 2)
           rows.push(makeTestRow('can_loopback', 'Test CAN Loopback',
             {tx_iface: ifaces[0], rx_iface: ifaces[1]},
@@ -388,10 +384,6 @@
           rows.push(makeTestRow('can_alive', `Test CAN Alive — ${intrepidCanLabel(iface)}`,
             {iface, bitrate: 500000, duration_s: 3},
             `can-alive-${dev.serial_number}-${iface}`)));
-
-        rows.push(makeTestRow('lin_check', 'Test LIN Interface',
-          {serial_number: dev.serial_number},
-          `lin-${dev.serial_number}`));
 
         // Pre-flash wiring sanity check: neoVI acts as LIN master and
         // transmits itself (LIN is master-polled, nothing to passively
