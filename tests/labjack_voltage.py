@@ -34,6 +34,11 @@ _LABJACK_SCRIPT = textwrap.dedent("""\
                    "AIN6", "AIN7", "AIN8", "AIN9", "AIN10", "AIN11",
                    "AIN12", "AIN13"]:
             try:
+                # Force single-ended (vs real GND) -- without this a channel
+                # can default to reading differentially against an unrelated
+                # floating pin, giving a value with no relation to the actual
+                # voltage to ground that a multimeter would show.
+                ljm.eWriteName(handle, f"{ch}_NEGATIVE_CH", 199)
                 val = ljm.eReadName(handle, ch)
                 readings[ch] = round(val, 4)
             except Exception as e:

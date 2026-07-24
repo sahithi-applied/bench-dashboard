@@ -18,10 +18,16 @@ _READ_SCRIPT = textwrap.dedent("""\
         from labjack import ljm
 
         handle = ljm.openS("T7", "ANY", "ANY")
+        # Force single-ended (referenced to real GND, not some other floating
+        # channel) -- without this a channel can default to reading
+        # differentially against an unrelated pin, producing an arbitrary
+        # value that has nothing to do with the actual voltage to ground
+        # (which is what a multimeter shows).
+        ljm.eWriteName(handle, f"{channel}_NEGATIVE_CH", 199)
         value = round(ljm.eReadName(handle, channel), 4)
         ljm.close(handle)
 
-        result.update(status="pass", output=f"{channel} = {value}V")
+        result.update(status="pass", output=f"{channel} = {value}V (single-ended vs GND)")
     except ImportError:
         result.update(status="error", error="labjack-ljm not installed on bench machine")
     except Exception as exc:
