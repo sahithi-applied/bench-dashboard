@@ -520,6 +520,15 @@
             {iface, bitrate: 500000, duration_s: 3},
             `can-alive-${dev.serial_number}-${iface}`)));
 
+        // Pre-flash CAN wiring check: sends one frame ourselves and checks
+        // the resulting bus error-state (bus-off vs error-active) rather
+        // than requiring a real response -- meaningful even with no DUT
+        // firmware transmitting yet.
+        ifaces.filter(i => /can/i.test(i)).forEach(iface =>
+          rows.push(makeTestRow('can_bus_health', `Test CAN Bus Health — ${intrepidCanLabel(iface)}`,
+            {iface, bitrate: 500000},
+            `can-health-${dev.serial_number}-${iface}`)));
+
         // Pre-flash wiring sanity check: neoVI acts as LIN master and
         // transmits itself (LIN is master-polled, nothing to passively
         // listen for without DUT firmware). Checks electrical fault flags,

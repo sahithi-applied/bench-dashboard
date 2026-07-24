@@ -590,7 +590,7 @@ def tester_connect():
 
 @app.route("/api/tester/run", methods=["POST"])
 def tester_run():
-    from tests import (can_loopback, can_alive, lin_alive, relay_toggle, denkovi_toggle,
+    from tests import (can_loopback, can_alive, can_bus_health, lin_alive, relay_toggle, denkovi_toggle,
                        hub_port_cycle, ethernet_ping,
                        labjack_voltage, labjack_toggle, labjack_dac, labjack_read,
                        lin_check, flexray_check,
@@ -607,6 +607,10 @@ def tester_run():
                                    params["iface"],
                                    int(params.get("bitrate", 500000)),
                                    int(params.get("duration_s", 3)))
+        elif test == "can_bus_health":
+            result = can_bus_health.run(host, user,
+                                        params["iface"],
+                                        int(params.get("bitrate", 500000)))
         elif test == "lin_alive":
             result = lin_alive.run(host, user,
                                    params["serial_number"],
