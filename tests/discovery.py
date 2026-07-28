@@ -34,16 +34,16 @@ _DISCOVERY_SCRIPT = textwrap.dedent("""\
         elif vid_pid == "0cd5:0007":
             result["labjack"].append({"description": line.strip()})
 
-    # StarTech hub power control usually goes through an FTDI FT232R UART --
-    # the serial_path used in benches_config.yaml. Some hubs instead report
-    # their own StarTech product string directly in the serial-by-id name
-    # rather than the generic FTDI chip name, so match either.
+    # StarTech hub power control goes through an FTDI UART that reports its
+    # own StarTech product string in the serial-by-id name. Matching on plain
+    # "FT232R" instead over-matches -- benches also have unrelated generic
+    # FT232R serial adapters (e.g. LIN/console cables) that aren't hubs at all.
     serial_dir = Path("/dev/serial/by-id")
     if serial_dir.exists():
         for p in sorted(serial_dir.iterdir()):
             if not p.name.endswith("-port0"):
                 continue
-            if "FT232R" in p.name or "StarTech" in p.name:
+            if "StarTech" in p.name:
                 result["usb_hubs"].append({
                     "serial_path": str(p),
                     "name": p.name,
