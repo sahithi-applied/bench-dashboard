@@ -69,13 +69,6 @@ benches:
       - label: unused_ch3
         inverted: false
         default: false
-    serial_devices:
-    - name: mcu_s32k_debug_serial
-      identifier: BK00TWYF
-    - name: rtu_s32z_debug_serial
-      identifier: BK00TWYA
-    - name: smu_s32z_debug_serial
-      identifier: FTD3TO1K
     labjack_devices:
     - name: labjack
       powered_by:
@@ -85,11 +78,13 @@ benches:
     - name: fl3x_ethernet
       interface: enp0s20f0u1u1u1c2
       device_ip: 192.168.1.15
+    - name: dut_ethernet
+      interface: enp3s0
 - name: helen
   hostname: helen-fw-hil-20
-  ip: 10.80.8.251
+  ip: 10.80.11.108
   ssh:
-    host: 10.80.8.251
+    host: 10.80.11.108
     user: dev
     sudo_user: bk
   buildkite:
@@ -107,7 +102,7 @@ benches:
         RTU serial
       - usb_hub_0_port_unused_3
     - name: usb_hub_1
-      serial_path: /dev/serial/by-id/usb-FTDI_FT232R_USB_UART_B001OYSO-if00-port0
+      serial_path: /dev/serial/by-id/usb-FTDI_FT232R_USB_UART_B001OZBX-if00-port0
       ports:
       - USB port that PCAN1 is connected to
       - USB port that PCAN0 is connected to
@@ -150,17 +145,12 @@ benches:
       - label: unused_ch3
         inverted: false
         default: false
-    serial_devices:
-    - name: mcu_s32k_debug_serial
-      identifier: AU0K3HGK
-    - name: rtu_s32z_debug_serial
-      identifier: AU0K3GYB
-    - name: smu_s32z_debug_serial
-      identifier: FT98RHHT
     ethernet_devices:
     - name: fl3x_ethernet
       interface: enx00e04cb20828
       device_ip: 192.168.1.15
+    - name: dut_ethernet
+      interface: enp3s0
 - name: elpaso
   hostname: elpaso-hw-bench-5
   ip: 10.80.11.28
@@ -226,13 +216,6 @@ benches:
       - label: unused_ch3
         inverted: false
         default: false
-    serial_devices:
-    - name: mcu_s32k_debug_serial
-      identifier: AU0K41SH
-    - name: rtu_s32z_debug_serial
-      identifier: AU0K3DGT
-    - name: smu_s32z_debug_serial
-      identifier: AB0L6LBL
     labjack_devices:
     - name: labjack
       powered_by:
@@ -242,6 +225,8 @@ benches:
     - name: fl3x_ethernet
       interface: enp0s20f0u1u1c2
       device_ip: 192.168.1.15
+    - name: dut_ethernet
+      interface: enp3s0
 - name: jericho
   hostname: jericho-fw-hil-31
   ip: 10.80.10.98
@@ -320,13 +305,77 @@ benches:
       - label: unused_ch3
         inverted: false
         default: false
-    serial_devices:
-    - name: mcu_s32k_debug_serial
-      identifier: AU0K40VB
-    - name: rtu_s32z_debug_serial
-      identifier: AU0K3FHR
-    - name: smu_s32z_debug_serial
-      identifier: FTEIO7H5
+    ethernet_devices:
+    - name: dut_ethernet
+      interface: enp87s0
+- name: mikey
+  hostname: mikey-fw-hil-29
+  ip: 10.80.11.15
+  ssh:
+    host: 10.80.11.15
+    user: dev
+    sudo_user: bk
+  buildkite:
+    service: buildkite-agent-bk.service
+    agent_name: mikey-fw-hil-29
+    queue: fw_hil
+  devices:
+    usb_hubs:
+    - name: usb_hub_0
+      serial_path: /dev/serial/by-id/usb-StarTech.com_5G4AINDRM-USB-A-HUB_B0BCBP9C-if00-port0
+      ports:
+      - Chained Anker 4-port hub with S32k PeMicro debugger, S32K serial, RTU serial,
+        watchdog relay board
+      - Chained Anker 4-port hub with S32 Debugger (ZAP), DUT relay board, SMU serial
+      - port_unused_2
+      - port_unused_3
+    - name: usb_hub_1
+      serial_path: /dev/serial/by-id/usb-StarTech.com_5G4AINDRM-USB-A-HUB_B0B7KE70-if00-port0
+      ports:
+      - USB port that PCAN (37233) is connected to
+      - USB port that PCAN (36924) is connected to
+      - USB port that PCAN2 (37547) is connected to
+      - USB power control for the Radmoon2 ethernet PHY adapter
+    relay_boards:
+    - name: dut_relays
+      identifier: AQ02HF9H
+      powered_by:
+        hub_index: 0
+        port: 1
+      channels:
+      - label: main_12v
+        inverted: true
+        default: false
+      - label: wdg_dbg_fs26
+        inverted: true
+        default: true
+      - label: boot_mod_1
+        inverted: false
+        default: true
+      - label: boot_mod_2
+        inverted: false
+        default: true
+    - name: wdg_relays
+      identifier: A4002Cpl
+      powered_by:
+        hub_index: 0
+        port: 0
+      channels:
+      - label: wdg_dbg_fs86
+        inverted: true
+        default: true
+      - label: wdg_dbg_pf50
+        inverted: true
+        default: true
+      - label: unused_ch2
+        inverted: false
+        default: false
+      - label: unused_ch3
+        inverted: false
+        default: false
+    ethernet_devices:
+    - name: dut_ethernet
+      interface: enp3s0
 - name: cassiopeia
   hostname: cassiopeia-fw-hil-17
   ip: 10.80.11.103
@@ -392,13 +441,9 @@ benches:
       - label: unused_ch3
         inverted: false
         default: false
-    serial_devices:
-    - name: mcu_s32k_debug_serial
-      identifier: AU0K3GJ6
-    - name: rtu_s32z_debug_serial
-      identifier: AU0K3GDJ
-    - name: smu_s32z_debug_serial
-      identifier: FTEIO7J0
+    ethernet_devices:
+    - name: dut_ethernet
+      interface: enp3s0
 - name: lemonade
   hostname: lemonade-fw-hil-28
   ip: 10.80.10.24
@@ -412,6 +457,9 @@ benches:
   devices:
     usb_hubs: []
     relay_boards: []
+    ethernet_devices:
+    - name: dut_eth
+      interface: enp3s0
 - name: mnemosyne
   hostname: mnemosyne-fw-hil-6
   ip: 10.80.10.57
@@ -423,103 +471,5 @@ benches:
     agent_name: mnemosyne-fw-hil-6
     queue: fw_hil
   devices:
-    usb_hubs:
-    - name: usb_hub_1
-      serial_path: /dev/serial/by-id/usb-StarTech.com_5G7AINDRM-USB-A-HUB_BGAUDYAG-if00-port0
-      ports:
-      - High pine FT4232 quad-serial and gpio device. For debug serial and BMODE gpio
-        control.
-      - SMU serial port; TODO remove after rework and use ft4232 instead
-      - Mach systems SENT1 device
-      - Mach systems SENT2 device
-    - name: usb_hub_2
-      serial_path: /dev/serial/by-id/usb-FTDI_FT232R_USB_UART_B001P3VS-if00-port0
-      ports:
-      - Unused
-      - Unused
-      - Unused
-      - 'USB31000S USB-to-Ethernet #2'
+    usb_hubs: []
     relay_boards: []
-    denkovi_relays:
-    - name: dut_relays
-      host: 192.168.1.100
-      channels:
-      - label: main_12v
-        inverted: false
-        default: true
-      - label: fs86_dbg_vbos
-        inverted: false
-        default: true
-      - label: pf50_dbg_vbos
-        inverted: false
-        default: true
-      - label: usb_hub_1_pwr
-        inverted: true
-        default: true
-      - label: usb_hub_2_pwr
-        inverted: true
-        default: true
-      - label: lin_12v_pwr
-        inverted: false
-        default: true
-      - label: unused_ch6
-        inverted: true
-        default: true
-      - label: media_conv_1_pwr
-        inverted: true
-        default: true
-      - label: media_conv_2_pwr
-        inverted: true
-        default: true
-      - label: psi5_pwr
-        inverted: true
-        default: true
-      - label: boot_mod_1
-        inverted: true
-        default: true
-      - label: boot_mod_2
-        inverted: true
-        default: true
-      - label: unused_ch12
-        inverted: false
-        default: false
-      - label: unused_ch13
-        inverted: false
-        default: false
-      - label: unused_ch14
-        inverted: false
-        default: false
-      - label: unused_ch15
-        inverted: false
-        default: false
-    serial_devices:
-    - name: smu_s32z_debug_serial
-      identifier: FT98RH82
-    - name: rtu_s32z_debug_serial
-      identifier: /dev/serial/by-id/usb-FTDI_Quad_RS232-HS-if01-port0
-    labjack_devices:
-    - name: labjack
-      powered_by:
-        hub_index: 0
-        port: 5
-    ethernet_devices:
-    - name: LAN2
-      interface: enp3s0
-    - name: usb_eth_1
-      interface: enx00249b8cb565
-    - name: usb_eth_2
-      interface: enx00249b8cb550
-    intrepid_devices:
-    - name: s32z_can1_conn_j10
-      serial_number: FF0552
-      channel_names:
-      - s32z_can1_conn_j10
-      - s32z_can2_conn_j10
-      - s32z_can3_conn_j15
-      - s32z_can4_conn_j15
-      - s32z_can5_conn_j9
-      - s32z_can6_conn_j9
-      - s32z_can7_conn_j15
-      - s32z_can8_conn_j15
-      - s32z_can9_conn_j10
-      - s32z_can10_conn_j10
